@@ -23,6 +23,8 @@ group_2 = ["paper", "tissue"]
 group_3 = ["plastic-bag", "foam-box", "organic", "plastic-cup"]
 group_4 = ["battery", "metal"]
 
+full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
+object_detected = False
 
 def create_frame_thumbnail_data_url(frame, center_xy=None, width=480, crop_scale=0.65, jpeg_quality=75):
     """Convert a frame to compact JPEG data URL for web UI preview."""
@@ -107,6 +109,8 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
     # Detect
     results = model(frame, conf=0.5)
     if len(results[0].boxes) > 0:
+        if object_detected:
+            return  # Skip processing if we already have a detected object until it clears to avoid duplicates.
         saved_any = False
         image_h, image_w = frame.shape[:2]
         yolo_lines = []
@@ -132,6 +136,7 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
                 best_center_xy = ((x1 + x2) // 2, (y1 + y2) // 2)
 
         if len(detected_groups) == 1 and None not in detected_groups:
+            object_detected = True
             for group in detected_groups:
                 # Increment count for valid group
                 detection_status.increment_counts(group)
@@ -143,8 +148,10 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
                     ser.write(b'3')
                 elif group == 4:
                     ser.write(b'4')
-                # Save frame and labels for valid detection    
-                saved_any = True
+                # Save frame and labels for valid detection
+                if full_status[group - 1] == 0:  # Only save if bin is not full
+                    saved_any = True
+
         # Update web UI with detected labels and detected frame thumbnail.
         frame_thumbnail = create_frame_thumbnail_data_url(frame, center_xy=best_center_xy)
         detection_status.update_detection(detected_labels, detected_groups, frame_thumbnail)
@@ -155,8 +162,8 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
             label_path = os.path.join(labels_dir, f"{sample_name}.txt")
             # Save in background to avoid delaying serial/event loop.
             save_queue.put((image_path, label_path, frame.copy(), yolo_lines[:]))
-        # delay to allow serial command to be processed before next frame is read.
-        time.sleep(1)
+    else:
+        object_detected = False
 
 # Main loop to read from camera, process frames, and handle serial communication.
 def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
@@ -164,7 +171,6 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
         print("Can't open camera")
         return
 
-    full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
     frame_count = 0
     while True:
         response = ser.readline().decode().strip()
