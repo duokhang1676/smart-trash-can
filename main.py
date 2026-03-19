@@ -181,6 +181,7 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
 def main():
     model = YOLO(MODEL_PATH, task="detect")
     cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_V4L2)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for serial connection to initialize.
 
