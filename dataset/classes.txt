@@ -1,0 +1,8 @@
+battery
+foam-box
+metal
+organic
+paper
+plastic
+plastic-bag
+tissue

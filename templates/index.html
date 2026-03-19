@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Trash Can</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-1: #f7fbff;
+            --bg-2: #eaf4ff;
+            --ink: #1f2933;
+            --muted: #68717a;
+            --card: rgba(255, 255, 255, 0.88);
+            --stroke: rgba(31, 41, 51, 0.12);
+            --g1: #ffbe0b;
+            --g2: #79c7ff;
+            --g3: #fb8500;
+            --g4: #2a9d8f;
+            --ok: #2b9348;
+            --full: #d62828;
+            --shadow: 0 20px 60px rgba(31, 41, 51, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: "IBM Plex Sans", sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 14% 18%, rgba(121, 199, 255, 0.28) 0%, transparent 32%),
+                radial-gradient(circle at 88% 80%, rgba(251, 133, 0, 0.22) 0%, transparent 30%),
+                linear-gradient(160deg, var(--bg-1), var(--bg-2));
+            padding: 20px;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(6px);
+        }
+
+        .main-view {
+            max-width: 1200px;
+            margin: 0 auto;
+            min-height: calc(100vh - 40px);
+            display: grid;
+            place-items: center;
+            position: relative;
+        }
+
+        .settings-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 1px solid var(--stroke);
+            background: rgba(255, 255, 255, 0.92);
+            font-size: 1.45rem;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(31, 41, 51, 0.16);
+            transition: transform 0.2s ease;
+        }
+
+        .settings-btn:hover {
+            transform: rotate(20deg) scale(1.05);
+        }
+
+        .hero {
+            width: min(100%, 980px);
+            padding: 24px;
+            display: grid;
+            gap: 22px;
+        }
+
+        .hero-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .hero-header h1 {
+            font-family: "Space Grotesk", sans-serif;
+            font-size: clamp(1.2rem, 2vw, 1.6rem);
+        }
+
+        .socket-chip {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .main-thumb {
+            width: 100%;
+            height: min(58vh, 520px);
+            border-radius: 16px;
+            object-fit: cover;
+            border: 1px solid var(--stroke);
+            background: #d9dee2;
+        }
+
+        .hero-label {
+            font-family: "Space Grotesk", sans-serif;
+            font-size: clamp(2.6rem, 9vw, 7rem);
+            line-height: 0.95;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-align: center;
+            color: #102a43;
+            text-shadow: 0 8px 18px rgba(16, 42, 67, 0.18);
+        }
+
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background: rgba(20, 30, 46, 0.44);
+            display: none;
+            padding: 20px;
+        }
+
+        .settings-overlay.open {
+            display: block;
+        }
+
+        .settings-modal {
+            max-width: 1460px;
+            margin: 0 auto;
+            height: calc(100vh - 40px);
+            background: rgba(247, 251, 255, 0.98);
+            border: 1px solid var(--stroke);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            overflow: auto;
+            padding: 18px;
+        }
+
+        .settings-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .settings-head h2 {
+            font-family: "Space Grotesk", sans-serif;
+            font-size: 1.3rem;
+        }
+
+        .close-btn {
+            border: 1px solid var(--stroke);
+            background: #fff;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .shell {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 18px;
+        }
+
+        .recent-panel {
+            padding: 16px;
+            min-height: 760px;
+        }
+
+        .recent-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .recent-title h3 {
+            font-family: "Space Grotesk", sans-serif;
+            font-size: 1.02rem;
+        }
+
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--ok);
+            box-shadow: 0 0 0 7px rgba(43, 147, 72, 0.15);
+        }
+
+        .recent-list {
+            list-style: none;
+            display: grid;
+            gap: 10px;
+            max-height: 690px;
+            overflow: auto;
+        }
+
+        .recent-item {
+            display: grid;
+            grid-template-columns: 64px 1fr;
+            gap: 10px;
+            border: 1px solid var(--stroke);
+            border-radius: 12px;
+            background: #fff;
+            padding: 8px;
+        }
+
+        .thumb {
+            width: 64px;
+            height: 64px;
+            border-radius: 10px;
+            object-fit: cover;
+            border: 1px solid var(--stroke);
+            background: #d9dee2;
+        }
+
+        .recent-item h4 {
+            text-transform: capitalize;
+            font-size: 0.94rem;
+        }
+
+        .recent-item p {
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
+
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 16px;
+        }
+
+        .circle-panel {
+            padding: 18px;
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .circle-wrap {
+            position: relative;
+            width: min(360px, 92vw);
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(31, 41, 51, 0.14);
+        }
+
+        .quadrant {
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            padding: 10px;
+            display: grid;
+            place-items: center;
+            transition: filter 0.2s ease;
+        }
+
+        .quadrant.dragover {
+            filter: brightness(1.1);
+        }
+
+        .q1 { top: 0; left: 0; background: var(--g1); }
+        .q2 { top: 0; right: 0; background: var(--g2); }
+        .q3 { bottom: 0; left: 0; background: var(--g3); }
+        .q4 { bottom: 0; right: 0; background: var(--g4); }
+
+        .quad-content {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid var(--stroke);
+            border-radius: 10px;
+            padding: 8px;
+            width: 100%;
+            min-height: 98px;
+            text-align: center;
+        }
+
+        .quad-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            font-family: "Space Grotesk", sans-serif;
+        }
+
+        .quad-count {
+            font-size: 1.3rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .quad-types {
+            font-size: 0.72rem;
+            color: #3e464d;
+            line-height: 1.2;
+            margin-bottom: 3px;
+        }
+
+        .state-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 0.72rem;
+        }
+
+        .state-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--ok);
+        }
+
+        .state-dot.full {
+            background: var(--full);
+        }
+
+        .circle-center {
+            position: absolute;
+            inset: 36%;
+            border-radius: 50%;
+            background: #fff;
+            border: 1px solid var(--stroke);
+            display: grid;
+            place-items: center;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-align: center;
+            padding: 6px;
+        }
+
+        .side-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .meta-card {
+            border: 1px solid var(--stroke);
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.88);
+        }
+
+        .meta-card h3 {
+            font-size: 0.84rem;
+            margin-bottom: 4px;
+        }
+
+        .meta-card p {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .drag-panel {
+            padding: 16px;
+        }
+
+        .drag-panel h2 {
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .drag-panel p {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .trash-list {
+            list-style: none;
+            gap: 8px;
+            display: grid;
+        }
+
+        .trash-item {
+            border: 1px dashed rgba(31, 41, 51, 0.24);
+            background: rgba(255, 255, 255, 0.86);
+            border-radius: 10px;
+            padding: 9px 10px;
+            font-size: 0.88rem;
+            cursor: grab;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-transform: capitalize;
+        }
+
+        .trash-item:hover {
+            border-style: solid;
+        }
+
+        .trash-item:active {
+            cursor: grabbing;
+        }
+
+        .trash-bin {
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+
+        .footer-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            border: 1px solid var(--stroke);
+            border-radius: 10px;
+            padding: 8px 11px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            background: #fff;
+        }
+
+        .btn.primary {
+            border-color: #1d3557;
+            background: #1d3557;
+            color: #fff;
+        }
+
+        @media (max-width: 1180px) {
+            .shell {
+                grid-template-columns: 1fr;
+            }
+
+            .recent-panel {
+                min-height: 280px;
+            }
+
+            .bottom-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 12px;
+            }
+
+            .hero {
+                padding: 14px;
+            }
+
+            .main-thumb {
+                height: 44vh;
+            }
+
+            .circle-panel {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="main-view">
+        <button id="open-settings" class="settings-btn" aria-label="Open settings">&#9881;</button>
+        <section class="panel hero">
+            <div class="hero-header">
+                <h1>Smart Trash Can</h1>
+                <span class="socket-chip" id="socket-state">Connecting...</span>
+            </div>
+            <img id="current-frame" class="main-thumb" alt="Current frame thumbnail">
+            <div id="main-label" class="hero-label">NO DETECTION</div>
+        </section>
+    </main>
+
+    <section id="settings-overlay" class="settings-overlay" aria-hidden="true">
+        <div class="settings-modal">
+            <div class="settings-head">
+                <h2>Settings</h2>
+                <button id="close-settings" class="close-btn">Close</button>
+            </div>
+
+            <div class="shell">
+                <aside class="panel recent-panel">
+                    <div class="recent-title">
+                        <h3>10 Recent Throws</h3>
+                        <span class="live-dot" aria-hidden="true"></span>
+                    </div>
+                    <ul class="recent-list" id="recent-list"></ul>
+                </aside>
+
+                <section class="bottom-grid">
+                    <section class="panel circle-panel">
+                        <div class="circle-wrap">
+                            <div class="quadrant q1" data-bin="1">
+                                <div class="quad-content">
+                                    <div class="quad-title">Bin 1</div>
+                                    <div class="quad-count" id="count-group-1">0</div>
+                                    <div class="quad-types" id="types-group-1">plastic</div>
+                                    <div class="state-row">
+                                        <span class="state-dot" id="state-group-1"></span>
+                                        <span id="state-text-1">Not Full</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="quadrant q2" data-bin="2">
+                                <div class="quad-content">
+                                    <div class="quad-title">Bin 2</div>
+                                    <div class="quad-count" id="count-group-2">0</div>
+                                    <div class="quad-types" id="types-group-2">paper, tissue</div>
+                                    <div class="state-row">
+                                        <span class="state-dot" id="state-group-2"></span>
+                                        <span id="state-text-2">Not Full</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="quadrant q3" data-bin="3">
+                                <div class="quad-content">
+                                    <div class="quad-title">Bin 3</div>
+                                    <div class="quad-count" id="count-group-3">0</div>
+                                    <div class="quad-types" id="types-group-3">plastic-bag, foam-box, organic, plastic-cup</div>
+                                    <div class="state-row">
+                                        <span class="state-dot" id="state-group-3"></span>
+                                        <span id="state-text-3">Not Full</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="quadrant q4" data-bin="4">
+                                <div class="quad-content">
+                                    <div class="quad-title">Bin 4</div>
+                                    <div class="quad-count" id="count-group-4">0</div>
+                                    <div class="quad-types" id="types-group-4">battery, metal</div>
+                                    <div class="state-row">
+                                        <span class="state-dot" id="state-group-4"></span>
+                                        <span id="state-text-4">Not Full</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="circle-center">
+                                <div>Total<br><strong id="count-total">0</strong></div>
+                            </div>
+                        </div>
+
+                        <div class="side-info">
+                            <div class="meta-card">
+                                <h3>Drag and Drop</h3>
+                                <p>Drag trash type from right panel and drop into one bin to reassign group.</p>
+                            </div>
+                            <div class="meta-card">
+                                <h3>Connection</h3>
+                                <p id="settings-socket-state">Connecting...</p>
+                            </div>
+                            <div class="meta-card">
+                                <h3>Note</h3>
+                                <p>Group changes are UI-only and do not write to backend.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <aside class="panel drag-panel">
+                        <h2>Trash Types</h2>
+                        <p>8 trash types can be assigned into Bin 1/2/3/4.</p>
+                        <ul class="trash-list" id="trash-types-list"></ul>
+                        <div class="footer-actions">
+                            <button class="btn primary" onclick="resetCounts()">Reset Count</button>
+                            <button class="btn" onclick="resetGroups()">Reset Groups</button>
+                        </div>
+                    </aside>
+                </section>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const DEFAULT_GROUPS = {
+            1: ["plastic"],
+            2: ["paper", "tissue"],
+            3: ["plastic-bag", "foam-box", "organic", "plastic-cup"],
+            4: ["battery", "metal"]
+        };
+
+        let socket = null;
+        let groups = structuredClone(DEFAULT_GROUPS);
+        let recentThrows = [];
+
+        function colorForLabel(label) {
+            const palette = ["#ffbe0b", "#2a9d8f", "#79c7ff", "#fb8500", "#457b9d", "#e76f51"];
+            let hash = 0;
+            for (let i = 0; i < label.length; i++) {
+                hash = (hash << 5) - hash + label.charCodeAt(i);
+                hash |= 0;
+            }
+            return palette[Math.abs(hash) % palette.length];
+        }
+
+        function makeThumbDataUrl(label) {
+            const canvas = document.createElement("canvas");
+            canvas.width = 240;
+            canvas.height = 160;
+            const ctx = canvas.getContext("2d");
+            const color = colorForLabel(label || "none");
+            const grd = ctx.createLinearGradient(0, 0, 240, 160);
+            grd.addColorStop(0, color);
+            grd.addColorStop(1, "#f8fbff");
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, 240, 160);
+            ctx.fillStyle = "rgba(16,42,67,0.86)";
+            ctx.font = "700 20px 'Space Grotesk'";
+            ctx.fillText("Detect", 16, 40);
+            ctx.font = "600 18px 'IBM Plex Sans'";
+            ctx.fillText((label || "none").slice(0, 18), 16, 76);
+            ctx.font = "500 13px 'IBM Plex Sans'";
+            ctx.fillText(new Date().toLocaleTimeString(), 16, 110);
+            return canvas.toDataURL("image/jpeg", 0.88);
+        }
+
+        function renderMainLabel(labels) {
+            const mainLabel = labels.length ? labels[0] : "NO DETECTION";
+            document.getElementById("main-label").textContent = mainLabel.toUpperCase();
+        }
+
+        function pushRecent(label, thumbUrl) {
+            recentThrows.unshift({
+                label,
+                time: new Date().toLocaleTimeString(),
+                thumbUrl
+            });
+            recentThrows = recentThrows.slice(0, 10);
+            renderRecentList();
+        }
+
+        function renderRecentList() {
+            const list = document.getElementById("recent-list");
+            if (!recentThrows.length) {
+                list.innerHTML = '<li class="recent-item"><img class="thumb" alt="No item" src="' + makeThumbDataUrl("waiting") + '"><div><h4>No data yet</h4><p>List will update when throw events arrive.</p></div></li>';
+                return;
+            }
+            list.innerHTML = recentThrows.map((item) => `
+                <li class="recent-item">
+                    <img class="thumb" src="${item.thumbUrl}" alt="${item.label}">
+                    <div>
+                        <h4>${item.label}</h4>
+                        <p>${item.time}</p>
+                    </div>
+                </li>
+            `).join("");
+        }
+
+        function findBinByLabel(label) {
+            for (let i = 1; i <= 4; i++) {
+                if (groups[i].includes(label)) {
+                    return i;
+                }
+            }
+            return null;
+        }
+
+        function renderTrashTypesList() {
+            const all = Object.values(groups).flat();
+            const ul = document.getElementById("trash-types-list");
+            ul.innerHTML = all.map((name) => {
+                const currentBin = findBinByLabel(name);
+                return `
+                    <li class="trash-item" draggable="true" data-label="${name}">
+                        <span>${name}</span>
+                        <span class="trash-bin">Bin ${currentBin}</span>
+                    </li>
+                `;
+            }).join("");
+
+            document.querySelectorAll(".trash-item").forEach((el) => {
+                el.addEventListener("dragstart", (e) => {
+                    e.dataTransfer.setData("text/plain", el.dataset.label);
+                });
+            });
+        }
+
+        function renderGroupTypes() {
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`types-group-${i}`).textContent = groups[i].join(", ");
+            }
+            renderTrashTypesList();
+        }
+
+        function setBinFullStatus(index, isFull) {
+            const dot = document.getElementById(`state-group-${index}`);
+            const text = document.getElementById(`state-text-${index}`);
+            dot.classList.toggle("full", isFull);
+            text.textContent = isFull ? "Full" : "Not Full";
+        }
+
+        function renderCounts(counts) {
+            document.getElementById("count-group-1").textContent = counts.group_1 ?? 0;
+            document.getElementById("count-group-2").textContent = counts.group_2 ?? 0;
+            document.getElementById("count-group-3").textContent = counts.group_3 ?? 0;
+            document.getElementById("count-group-4").textContent = counts.group_4 ?? 0;
+            document.getElementById("count-total").textContent = counts.total ?? 0;
+        }
+
+        function applyStatus(data) {
+            const labels = Array.isArray(data.detected_labels) ? data.detected_labels : [];
+            renderMainLabel(labels);
+
+            const mainLabel = labels[0] || "none";
+            const thumbUrl = data.frame_thumbnail || makeThumbDataUrl(mainLabel);
+            document.getElementById("current-frame").src = thumbUrl;
+
+            renderCounts(data.counts || {});
+
+            if (data.full_status && Array.isArray(data.full_status)) {
+                for (let i = 1; i <= 4; i++) {
+                    setBinFullStatus(i, Boolean(data.full_status[i - 1]));
+                }
+            }
+
+            if (labels.length) {
+                labels.forEach((label) => pushRecent(label, thumbUrl));
+            }
+        }
+
+        function initDragDrop() {
+            document.querySelectorAll(".quadrant").forEach((zone) => {
+                zone.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    zone.classList.add("dragover");
+                });
+
+                zone.addEventListener("dragleave", () => {
+                    zone.classList.remove("dragover");
+                });
+
+                zone.addEventListener("drop", (e) => {
+                    e.preventDefault();
+                    zone.classList.remove("dragover");
+
+                    const label = e.dataTransfer.getData("text/plain");
+                    const targetBin = Number(zone.dataset.bin);
+                    if (!label || !targetBin) {
+                        return;
+                    }
+
+                    for (let i = 1; i <= 4; i++) {
+                        groups[i] = groups[i].filter((item) => item !== label);
+                    }
+
+                    if (!groups[targetBin].includes(label)) {
+                        groups[targetBin].push(label);
+                    }
+
+                    renderGroupTypes();
+                });
+            });
+        }
+
+        function setSocketState(text) {
+            document.getElementById("socket-state").textContent = text;
+            document.getElementById("settings-socket-state").textContent = text;
+        }
+
+        function initSocket() {
+            socket = io(window.location.origin, {
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                reconnectionAttempts: Infinity
+            });
+
+            socket.on("connect", () => {
+                setSocketState("Connected");
+            });
+
+            socket.on("status_update", (data) => {
+                applyStatus(data);
+            });
+
+            socket.on("disconnect", () => {
+                setSocketState("Disconnected");
+            });
+
+            socket.on("connect_error", () => {
+                setSocketState("Connect error");
+            });
+        }
+
+        function resetCounts() {
+            if (socket) {
+                socket.emit("reset_counts");
+            }
+        }
+
+        function resetGroups() {
+            groups = structuredClone(DEFAULT_GROUPS);
+            renderGroupTypes();
+        }
+
+        function openSettings() {
+            const overlay = document.getElementById("settings-overlay");
+            overlay.classList.add("open");
+            overlay.setAttribute("aria-hidden", "false");
+        }
+
+        function closeSettings() {
+            const overlay = document.getElementById("settings-overlay");
+            overlay.classList.remove("open");
+            overlay.setAttribute("aria-hidden", "true");
+        }
+
+        function initSettingsToggle() {
+            document.getElementById("open-settings").addEventListener("click", openSettings);
+            document.getElementById("close-settings").addEventListener("click", closeSettings);
+
+            document.getElementById("settings-overlay").addEventListener("click", (event) => {
+                if (event.target.id === "settings-overlay") {
+                    closeSettings();
+                }
+            });
+
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                    closeSettings();
+                }
+            });
+        }
+
+        function initUi() {
+            const waitingThumb = makeThumbDataUrl("waiting");
+            document.getElementById("current-frame").src = waitingThumb;
+            renderRecentList();
+            renderGroupTypes();
+            initDragDrop();
+            initSettingsToggle();
+            initSocket();
+        }
+
+        initUi();
+    </script>
+</body>
+</html>
