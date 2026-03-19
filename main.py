@@ -180,7 +180,7 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
 # Main entry point: initialize model, camera, serial, and start processing loop.
 def main():
     model = YOLO(MODEL_PATH)
-    cap = cv2.VideoCapture(CAMERA_PATH)
+    cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_V4L2)
     ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for serial connection to initialize.
 
