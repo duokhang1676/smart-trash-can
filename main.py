@@ -10,9 +10,9 @@ import detection_status
 import web_server
 
 #CONSTANTS
-MODEL_PATH = "yolo11n-ver1.pt" # yolo11n-ver1.engine
-SERIAL_PORT = 'COM12' # /dev/ttyUSB0
-CAMERA_PATH = 0 # /dev/video0
+MODEL_PATH = "yolo11n-ver1.engine" #"yolo11n-ver1.pt" # 
+SERIAL_PORT = "/dev/ttyUSB0" #'COM12' # /dev/ttyUSB0
+CAMERA_PATH = "/dev/video0" # /dev/video0
 DATASET_DIR = "dataset"
 BAUDRATE = 9600
 
