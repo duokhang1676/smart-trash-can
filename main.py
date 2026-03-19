@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import time
 import serial
 import os
@@ -156,8 +157,6 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
             save_queue.put((image_path, label_path, frame.copy(), yolo_lines[:]))
         # delay to allow serial command to be processed before next frame is read.
         time.sleep(1)
-    # detect 1 frame every 1 second
-    time.sleep(1)
 
 # Main loop to read from camera, process frames, and handle serial communication.
 def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
@@ -166,6 +165,7 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
         return
 
     full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
+    frame_count = 0
     while True:
         response = ser.readline().decode().strip()
         if response:
@@ -174,7 +174,10 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
         ret, frame = cap.read()
         if not ret:
             break
-
+        
+        frame_count += 1
+        if frame_count % 5 != 0:
+            continue
         process_frame(frame, model, ser, save_queue, images_dir, labels_dir)
 
 # Main entry point: initialize model, camera, serial, and start processing loop.
@@ -182,6 +185,15 @@ def main():
     model = YOLO(MODEL_PATH, task="detect")
     cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    # Warm-up camera
+    for _ in range(10):
+        cap.read()
+
+    # Warm-up model
+    dummy = np.zeros((320, 320, 3), dtype=np.uint8)
+    for _ in range(5):
+        model(dummy)
+
     ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
     time.sleep(2)  # Wait for serial connection to initialize.
 
@@ -193,10 +205,12 @@ def main():
 
     # Start web server in separate thread
     web_thread = threading.Thread(target=web_server.start_web_server, args=(5000,), daemon=True)
+    time.sleep(2)  # Give web server a moment to start before main loop begins.
     web_thread.start()
     print("Web server started at http://localhost:5000")
 
     try:
+        time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
         main_loop(model, cap, ser, save_queue, images_dir, labels_dir)
     finally:
         save_queue.put(None)
