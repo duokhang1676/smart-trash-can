@@ -175,9 +175,9 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
         if not ret:
             break
         
-        frame_count += 1
-        if frame_count % 5 != 0:
-            continue
+        # frame_count += 1
+        # if frame_count % 5 != 0:
+        #     continue
         process_frame(frame, model, ser, save_queue, images_dir, labels_dir)
 
 # Main entry point: initialize model, camera, serial, and start processing loop.
