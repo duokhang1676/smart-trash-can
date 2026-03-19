@@ -63,14 +63,14 @@ bool updateFullStatusAndLed() {
 
   for (uint8_t i = 0; i < BIN_COUNT; i++) {
     float d = readDistance(trigPins[i], echoPins[i]);
-
-    if (d < 7) {
-      digitalWrite(ledPins[i], HIGH);
-      full[i] = 1;
-    } else {
-      digitalWrite(ledPins[i], LOW);
-      full[i] = 0;
-    }
+    // cmt to wait for fix srf sensor location
+    // if (d < 7) {
+    //   digitalWrite(ledPins[i], HIGH);
+    //   full[i] = 1;
+    // } else {
+    //   digitalWrite(ledPins[i], LOW);
+    //   full[i] = 0;
+    // }
 
     if (full[i] != pre_full[i]) {
       changed = true;

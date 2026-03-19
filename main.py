@@ -23,9 +23,6 @@ group_2 = ["paper", "tissue"]
 group_3 = ["plastic-bag", "foam-box", "organic", "plastic-cup"]
 group_4 = ["battery", "metal"]
 
-full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
-object_detected = False
-
 def create_frame_thumbnail_data_url(frame, center_xy=None, width=480, crop_scale=0.65, jpeg_quality=75):
     """Convert a frame to compact JPEG data URL for web UI preview."""
     image_h, image_w = frame.shape[:2]
@@ -105,7 +102,7 @@ def get_group_for_label(label):
     return None
 
 # Process a single frame: detect objects, determine groups, send serial commands, and queue saves.
-def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
+def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, object_detected, full_status):
     # Detect
     results = model(frame, conf=0.5)
     if len(results[0].boxes) > 0:
@@ -166,7 +163,7 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir):
         object_detected = False
 
 # Main loop to read from camera, process frames, and handle serial communication.
-def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
+def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, object_detected, full_status):
     if not cap.isOpened():
         print("Can't open camera")
         return
@@ -184,7 +181,7 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir):
         # frame_count += 1
         # if frame_count % 5 != 0:
         #     continue
-        process_frame(frame, model, ser, save_queue, images_dir, labels_dir)
+        process_frame(frame, model, ser, save_queue, images_dir, labels_dir, object_detected, full_status)
 
 # Main entry point: initialize model, camera, serial, and start processing loop.
 def main():
@@ -217,7 +214,9 @@ def main():
 
     try:
         time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
-        main_loop(model, cap, ser, save_queue, images_dir, labels_dir)
+        full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
+        object_detected = False
+        main_loop(model, cap, ser, save_queue, images_dir, labels_dir, object_detected, full_status)
     finally:
         save_queue.put(None)
         save_queue.join()
