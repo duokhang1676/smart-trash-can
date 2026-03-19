@@ -102,12 +102,14 @@ def get_group_for_label(label):
     return None
 
 # Process a single frame: detect objects, determine groups, send serial commands, and queue saves.
-def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, object_detected, full_status):
+def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     # Detect
     results = model(frame, conf=0.5)
     if len(results[0].boxes) > 0:
-        if object_detected:
-            return  # Skip processing if we already have a detected object until it clears to avoid duplicates.
+        # Debounce: skip if command was sent recently (within debounce_seconds)
+        current_time = time.time()
+        if current_time - detection_state['last_send_time'] < detection_state['debounce_seconds']:
+            return  # Skip processing - too soon after last detection
         saved_any = False
         image_h, image_w = frame.shape[:2]
         yolo_lines = []
@@ -133,8 +135,9 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, object_
                 best_center_xy = ((x1 + x2) // 2, (y1 + y2) // 2)
 
         if len(detected_groups) == 1 and None not in detected_groups:
-            object_detected = True
             for group in detected_groups:
+                # Update last send time to enable debouncing
+                detection_state['last_send_time'] = time.time()
                 # Increment count for valid group
                 detection_status.increment_counts(group)
                 if group == 1:
@@ -159,11 +162,9 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, object_
             label_path = os.path.join(labels_dir, f"{sample_name}.txt")
             # Save in background to avoid delaying serial/event loop.
             save_queue.put((image_path, label_path, frame.copy(), yolo_lines[:]))
-    else:
-        object_detected = False
 
 # Main loop to read from camera, process frames, and handle serial communication.
-def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, object_detected, full_status):
+def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     if not cap.isOpened():
         print("Can't open camera")
         return
@@ -181,7 +182,7 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, object_detect
         # frame_count += 1
         # if frame_count % 5 != 0:
         #     continue
-        process_frame(frame, model, ser, save_queue, images_dir, labels_dir, object_detected, full_status)
+        process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
 
 # Main entry point: initialize model, camera, serial, and start processing loop.
 def main():
@@ -215,8 +216,12 @@ def main():
     try:
         time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
         full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
-        object_detected = False
-        main_loop(model, cap, ser, save_queue, images_dir, labels_dir, object_detected, full_status)
+        # Debounce state: track last time command was sent to prevent rapid re-triggering
+        detection_state = {
+            'last_send_time': 0,
+            'debounce_seconds': 2.5  # Wait 2.5 seconds between commands for same object
+        }
+        main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
     finally:
         save_queue.put(None)
         save_queue.join()
