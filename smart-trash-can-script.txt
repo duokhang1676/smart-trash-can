@@ -1,0 +1,12 @@
+SMART TRASH CAN VERSION 2
+material (formex, hot glue, 502 glue, drawstring, black tap, switch)
+1. Using CSI camera instead of webcam 
+2. Move srf05 sensor to good place
+3. Using formex to made trash bins and use magnet to fix bins position
+4. Cover trash can by stick skin
+5. Using buzzer and turn servo to appear connected signal in Arduino
+6. Using power button on jetson to run program and soft shutdown for jetson nano
+7. Build service for power button
+8. Build program for jetson nano hospot show weblocal
+9. Complete web local feature and responsive for mobile 
+10. Cover the can by inox sheet

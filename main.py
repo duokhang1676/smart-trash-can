@@ -13,7 +13,7 @@ import web_server
 #CONSTANTS
 MODEL_PATH = "yolo11n-ver1.engine" #"yolo11n-ver1.pt" # 
 SERIAL_PORT = "/dev/ttyUSB0" #'COM12' # /dev/ttyUSB0
-CAMERA_PATH = "/dev/video0" # /dev/video0
+CAMERA_PATH = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1640, height=1232, framerate=30/1 ! nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
 DATASET_DIR = "dataset"
 BAUDRATE = 9600
 
@@ -187,7 +187,7 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_sta
 # Main entry point: initialize model, camera, serial, and start processing loop.
 def main():
     model = YOLO(MODEL_PATH, task="detect")
-    cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_GSTREAMER)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     # Warm-up camera
     for _ in range(10):
