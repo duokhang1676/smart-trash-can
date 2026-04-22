@@ -486,7 +486,7 @@
             <div class="shell">
                 <aside class="panel recent-panel">
                     <div class="recent-title">
-                        <h3>10 Recent Throws</h3>
+                        <h3>Latest Throw</h3>
                         <span class="live-dot" aria-hidden="true"></span>
                     </div>
                     <ul class="recent-list" id="recent-list"></ul>
@@ -585,7 +585,6 @@
 
         let socket = null;
         let groups = structuredClone(DEFAULT_GROUPS);
-        let recentThrows = [];
 
         function colorForLabel(label) {
             const palette = ["#ffbe0b", "#2a9d8f", "#79c7ff", "#fb8500", "#457b9d", "#e76f51"];
@@ -623,31 +622,22 @@
             document.getElementById("main-label").textContent = mainLabel.toUpperCase();
         }
 
-        function pushRecent(label, thumbUrl) {
-            recentThrows.unshift({
-                label,
-                time: new Date().toLocaleTimeString(),
-                thumbUrl
-            });
-            recentThrows = recentThrows.slice(0, 10);
-            renderRecentList();
-        }
-
         function renderRecentList() {
             const list = document.getElementById("recent-list");
-            if (!recentThrows.length) {
-                list.innerHTML = '<li class="recent-item"><img class="thumb" alt="No item" src="' + makeThumbDataUrl("waiting") + '"><div><h4>No data yet</h4><p>List will update when throw events arrive.</p></div></li>';
+            const latest = window.latestThrow || null;
+            if (!latest) {
+                list.innerHTML = '<li class="recent-item"><img class="thumb" alt="No item" src="' + makeThumbDataUrl("waiting") + '"><div><h4>No data yet</h4><p>Single latest throw will appear here.</p></div></li>';
                 return;
             }
-            list.innerHTML = recentThrows.map((item) => `
+            list.innerHTML = `
                 <li class="recent-item">
-                    <img class="thumb" src="${item.thumbUrl}" alt="${item.label}">
+                    <img class="thumb" src="${latest.thumbUrl}" alt="${latest.label}">
                     <div>
-                        <h4>${item.label}</h4>
-                        <p>${item.time}</p>
+                        <h4>${latest.label}</h4>
+                        <p>${latest.time}</p>
                     </div>
                 </li>
-            `).join("");
+            `;
         }
 
         function findBinByLabel(label) {
@@ -718,7 +708,12 @@
             }
 
             if (labels.length) {
-                labels.forEach((label) => pushRecent(label, thumbUrl));
+                window.latestThrow = {
+                    label: labels[0],
+                    time: new Date().toLocaleTimeString(),
+                    thumbUrl
+                };
+                renderRecentList();
             }
         }
 
@@ -829,6 +824,8 @@
         function initUi() {
             const waitingThumb = makeThumbDataUrl("waiting");
             document.getElementById("current-frame").src = waitingThumb;
+            window.latestThrow = null;
+            renderRecentList();
             renderRecentList();
             renderGroupTypes();
             initDragDrop();

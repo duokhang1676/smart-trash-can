@@ -300,16 +300,17 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
                 detection_state["locked_group"],
             )
 
-        # Update web UI with detected labels and detected frame thumbnail.
-        frame_thumbnail = create_frame_thumbnail_data_url(frame, center_xy=best_center_xy)
-        detection_status.update_detection(detected_labels, detected_groups, frame_thumbnail)
-
         if saved_any:
             sample_name = str(int(time.time() * 1000))
             image_path = os.path.join(images_dir, f"{sample_name}.jpg")
             label_path = os.path.join(labels_dir, f"{sample_name}.txt")
             # Save in background to avoid delaying serial/event loop.
             save_queue.put((image_path, label_path, frame.copy(), yolo_lines[:]))
+
+            # Update web UI only for confirmed throws so the browser shows the
+            # same frame content that is written to disk.
+            frame_thumbnail = create_frame_thumbnail_data_url(frame.copy())
+            detection_status.update_detection(detected_labels, detected_groups, frame_thumbnail)
 
 # Main loop to read from camera, process frames, and handle serial communication.
 def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
