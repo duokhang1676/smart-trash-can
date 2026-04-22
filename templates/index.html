@@ -9,19 +9,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-1: #f7fbff;
-            --bg-2: #eaf4ff;
-            --ink: #1f2933;
-            --muted: #68717a;
+            --bg-1: #ecfff6;
+            --bg-2: #e7f4ff;
+            --ink: #11313a;
+            --muted: #4e6b73;
             --card: rgba(255, 255, 255, 0.88);
-            --stroke: rgba(31, 41, 51, 0.12);
-            --g1: #ffbe0b;
-            --g2: #79c7ff;
-            --g3: #fb8500;
-            --g4: #2a9d8f;
+            --stroke: rgba(17, 49, 58, 0.14);
+            --g1: #4db6ac;
+            --g2: #42a5f5;
+            --g3: #2a9d8f;
+            --g4: #1e88e5;
             --ok: #2b9348;
             --full: #d62828;
-            --shadow: 0 20px 60px rgba(31, 41, 51, 0.16);
+            --shadow: 0 20px 60px rgba(19, 88, 94, 0.18);
         }
 
         * {
@@ -35,8 +35,8 @@
             font-family: "IBM Plex Sans", sans-serif;
             color: var(--ink);
             background:
-                radial-gradient(circle at 14% 18%, rgba(121, 199, 255, 0.28) 0%, transparent 32%),
-                radial-gradient(circle at 88% 80%, rgba(251, 133, 0, 0.22) 0%, transparent 30%),
+                radial-gradient(circle at 14% 18%, rgba(66, 165, 245, 0.26) 0%, transparent 34%),
+                radial-gradient(circle at 88% 80%, rgba(77, 182, 172, 0.24) 0%, transparent 30%),
                 linear-gradient(160deg, var(--bg-1), var(--bg-2));
             padding: 20px;
         }
@@ -86,14 +86,39 @@
 
         .hero-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
+            flex-direction: column;
+            gap: 10px;
         }
 
-        .hero-header h1 {
-            font-family: "Space Grotesk", sans-serif;
-            font-size: clamp(1.2rem, 2vw, 1.6rem);
+        .brand-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
         }
+
+        .brand-logo {
+            width: 54px;
+            height: 54px;
+            object-fit: contain;
+            filter: drop-shadow(0 6px 12px rgba(20, 90, 93, 0.24));
+        }
+
+        .brand-title {
+            font-family: "Space Grotesk", sans-serif;
+            font-size: clamp(1.2rem, 3vw, 2rem);
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .brand-title .s1 { color: #0f766e; }
+        .brand-title .s2 { color: #0ea5e9; }
+        .brand-title .s3 { color: #16a34a; }
 
         .socket-chip {
             font-size: 0.85rem;
@@ -104,9 +129,9 @@
             width: 100%;
             height: min(58vh, 520px);
             border-radius: 16px;
-            object-fit: cover;
+            object-fit: contain;
             border: 1px solid var(--stroke);
-            background: #d9dee2;
+            background: #0f1720;
         }
 
         .hero-label {
@@ -242,40 +267,37 @@
 
         .circle-panel {
             padding: 18px;
-            display: grid;
-            grid-template-columns: 360px 1fr;
-            gap: 14px;
-            align-items: center;
+            display: block;
         }
 
         .circle-wrap {
-            position: relative;
-            width: min(360px, 92vw);
-            aspect-ratio: 1 / 1;
+            width: 100%;
             margin: 0 auto;
-            border-radius: 50%;
-            overflow: hidden;
-            border: 2px solid rgba(31, 41, 51, 0.14);
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
         }
 
         .quadrant {
-            position: absolute;
-            width: 50%;
-            height: 50%;
+            position: relative;
+            width: 100%;
+            min-height: 218px;
             padding: 10px;
             display: grid;
             place-items: center;
             transition: filter 0.2s ease;
+            border-radius: 14px;
+            border: 1px solid var(--stroke);
         }
 
         .quadrant.dragover {
             filter: brightness(1.1);
         }
 
-        .q1 { top: 0; left: 0; background: var(--g1); }
-        .q2 { top: 0; right: 0; background: var(--g2); }
-        .q3 { bottom: 0; left: 0; background: var(--g3); }
-        .q4 { bottom: 0; right: 0; background: var(--g4); }
+        .q1 { background: linear-gradient(145deg, var(--g1), #b8f0ea); }
+        .q2 { background: linear-gradient(145deg, var(--g2), #b8deff); }
+        .q3 { background: linear-gradient(145deg, var(--g3), #abefe7); }
+        .q4 { background: linear-gradient(145deg, var(--g4), #a9d6ff); }
 
         .quad-content {
             background: rgba(255, 255, 255, 0.88);
@@ -283,8 +305,20 @@
             border-radius: 10px;
             padding: 8px;
             width: 100%;
-            min-height: 98px;
+            min-height: 188px;
             text-align: center;
+            display: grid;
+            align-content: start;
+            gap: 5px;
+        }
+
+        .bin-photo {
+            width: 100%;
+            height: 82px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--stroke);
+            margin-bottom: 2px;
         }
 
         .quad-title {
@@ -314,6 +348,29 @@
             font-size: 0.72rem;
         }
 
+        .capacity-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+
+        .capacity-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(17, 49, 58, 0.12);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .capacity-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #10b981, #0284c7);
+            transition: width 0.25s ease;
+        }
+
         .state-dot {
             width: 10px;
             height: 10px;
@@ -326,9 +383,8 @@
         }
 
         .circle-center {
-            position: absolute;
-            inset: 36%;
-            border-radius: 50%;
+            display: none;
+            border-radius: 14px;
             background: #fff;
             border: 1px solid var(--stroke);
             display: grid;
@@ -336,30 +392,7 @@
             font-size: 0.82rem;
             font-weight: 600;
             text-align: center;
-            padding: 6px;
-        }
-
-        .side-info {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .meta-card {
-            border: 1px solid var(--stroke);
-            border-radius: 12px;
-            padding: 10px 12px;
-            background: rgba(255, 255, 255, 0.88);
-        }
-
-        .meta-card h3 {
-            font-size: 0.84rem;
-            margin-bottom: 4px;
-        }
-
-        .meta-card p {
-            font-size: 0.8rem;
-            color: var(--muted);
+            padding: 10px 6px;
         }
 
         .drag-panel {
@@ -425,8 +458,8 @@
         }
 
         .btn.primary {
-            border-color: #1d3557;
-            background: #1d3557;
+            border-color: #0f766e;
+            background: #0f766e;
             color: #fff;
         }
 
@@ -460,6 +493,10 @@
             .circle-panel {
                 grid-template-columns: 1fr;
             }
+
+            .circle-wrap {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -468,7 +505,14 @@
         <button id="open-settings" class="settings-btn" aria-label="Open settings">&#9881;</button>
         <section class="panel hero">
             <div class="hero-header">
-                <h1>Smart Trash Can</h1>
+                <div class="brand-wrap">
+                    <img class="brand-logo" src="/public/logo.png" alt="Smart Trash Can Logo">
+                    <h1 class="brand-title">
+                        <span class="s1">Smart</span>
+                        <span class="s2">Trash</span>
+                        <span class="s3">Can</span>
+                    </h1>
+                </div>
                 <span class="socket-chip" id="socket-state">Connecting...</span>
             </div>
             <img id="current-frame" class="main-thumb" alt="Current frame thumbnail">
@@ -497,9 +541,15 @@
                         <div class="circle-wrap">
                             <div class="quadrant q1" data-bin="1">
                                 <div class="quad-content">
+                                    <img class="bin-photo" src="/public/1.png" alt="Bin 1 image">
                                     <div class="quad-title">Bin 1</div>
                                     <div class="quad-count" id="count-group-1">0</div>
                                     <div class="quad-types" id="types-group-1">plastic</div>
+                                    <div class="capacity-row">
+                                        <span>Capacity</span>
+                                        <span id="capacity-text-1">0%</span>
+                                    </div>
+                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-1"></div></div>
                                     <div class="state-row">
                                         <span class="state-dot" id="state-group-1"></span>
                                         <span id="state-text-1">Not Full</span>
@@ -508,9 +558,15 @@
                             </div>
                             <div class="quadrant q2" data-bin="2">
                                 <div class="quad-content">
+                                    <img class="bin-photo" src="/public/2.png" alt="Bin 2 image">
                                     <div class="quad-title">Bin 2</div>
                                     <div class="quad-count" id="count-group-2">0</div>
                                     <div class="quad-types" id="types-group-2">paper, tissue</div>
+                                    <div class="capacity-row">
+                                        <span>Capacity</span>
+                                        <span id="capacity-text-2">0%</span>
+                                    </div>
+                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-2"></div></div>
                                     <div class="state-row">
                                         <span class="state-dot" id="state-group-2"></span>
                                         <span id="state-text-2">Not Full</span>
@@ -519,9 +575,15 @@
                             </div>
                             <div class="quadrant q3" data-bin="3">
                                 <div class="quad-content">
+                                    <img class="bin-photo" src="/public/3.png" alt="Bin 3 image">
                                     <div class="quad-title">Bin 3</div>
                                     <div class="quad-count" id="count-group-3">0</div>
                                     <div class="quad-types" id="types-group-3">plastic-bag, foam-box, organic, plastic-cup</div>
+                                    <div class="capacity-row">
+                                        <span>Capacity</span>
+                                        <span id="capacity-text-3">0%</span>
+                                    </div>
+                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-3"></div></div>
                                     <div class="state-row">
                                         <span class="state-dot" id="state-group-3"></span>
                                         <span id="state-text-3">Not Full</span>
@@ -530,9 +592,15 @@
                             </div>
                             <div class="quadrant q4" data-bin="4">
                                 <div class="quad-content">
+                                    <img class="bin-photo" src="/public/4.png" alt="Bin 4 image">
                                     <div class="quad-title">Bin 4</div>
                                     <div class="quad-count" id="count-group-4">0</div>
                                     <div class="quad-types" id="types-group-4">battery, metal</div>
+                                    <div class="capacity-row">
+                                        <span>Capacity</span>
+                                        <span id="capacity-text-4">0%</span>
+                                    </div>
+                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-4"></div></div>
                                     <div class="state-row">
                                         <span class="state-dot" id="state-group-4"></span>
                                         <span id="state-text-4">Not Full</span>
@@ -544,20 +612,6 @@
                             </div>
                         </div>
 
-                        <div class="side-info">
-                            <div class="meta-card">
-                                <h3>Drag and Drop</h3>
-                                <p>Drag trash type from right panel and drop into one bin to reassign group.</p>
-                            </div>
-                            <div class="meta-card">
-                                <h3>Connection</h3>
-                                <p id="settings-socket-state">Connecting...</p>
-                            </div>
-                            <div class="meta-card">
-                                <h3>Note</h3>
-                                <p>Group changes are UI-only and do not write to backend.</p>
-                            </div>
-                        </div>
                     </section>
 
                     <aside class="panel drag-panel">
@@ -676,11 +730,17 @@
             renderTrashTypesList();
         }
 
-        function setBinFullStatus(index, isFull) {
+        function setBinFullStatus(index, fillPercent) {
+            const safePercent = Math.max(0, Math.min(100, Number(fillPercent) || 0));
+            const isFull = safePercent >= 95;
             const dot = document.getElementById(`state-group-${index}`);
             const text = document.getElementById(`state-text-${index}`);
+            const capText = document.getElementById(`capacity-text-${index}`);
+            const capFill = document.getElementById(`capacity-group-${index}`);
             dot.classList.toggle("full", isFull);
             text.textContent = isFull ? "Full" : "Not Full";
+            capText.textContent = `${safePercent.toFixed(0)}%`;
+            capFill.style.width = `${safePercent}%`;
         }
 
         function renderCounts(counts) {
@@ -703,7 +763,7 @@
 
             if (data.full_status && Array.isArray(data.full_status)) {
                 for (let i = 1; i <= 4; i++) {
-                    setBinFullStatus(i, Boolean(data.full_status[i - 1]));
+                    setBinFullStatus(i, data.full_status[i - 1]);
                 }
             }
 
@@ -753,7 +813,10 @@
 
         function setSocketState(text) {
             document.getElementById("socket-state").textContent = text;
-            document.getElementById("settings-socket-state").textContent = text;
+            const settingsState = document.getElementById("settings-socket-state");
+            if (settingsState) {
+                settingsState.textContent = text;
+            }
         }
 
         function initSocket() {
@@ -825,7 +888,6 @@
             const waitingThumb = makeThumbDataUrl("waiting");
             document.getElementById("current-frame").src = waitingThumb;
             window.latestThrow = null;
-            renderRecentList();
             renderRecentList();
             renderGroupTypes();
             initDragDrop();

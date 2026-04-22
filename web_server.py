@@ -5,7 +5,7 @@ from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO, emit
 import detection_status
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="templates", static_folder="public", static_url_path="/public")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Track notification thread

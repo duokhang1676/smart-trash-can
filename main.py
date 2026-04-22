@@ -21,6 +21,7 @@ CONFIRM_FRAMES = 3
 RESET_MISSED_FRAMES = 2
 MIN_SEND_INTERVAL_SEC = 0.8
 REARM_SAME_GROUP_SEC = 2.0
+FULL_THRESHOLD_PERCENT = 95.0
 
 logging.basicConfig(
     level=logging.INFO,
@@ -102,7 +103,10 @@ def parse_bin_status(response, expected_count=4):
         except ValueError:
             return None
 
-        parsed.append(1 if value >= 0.5 else 0)
+        # Keep percentages for UI. If sender provides 0..1, scale to 0..100.
+        if 0.0 <= value <= 1.0:
+            value *= 100.0
+        parsed.append(max(0.0, min(100.0, value)))
 
     return parsed
 
@@ -153,7 +157,7 @@ group_2 = ["paper", "tissue"]
 group_3 = ["plastic-bag", "foam-box", "organic", "plastic-cup"]
 group_4 = ["battery", "metal"]
 
-def create_frame_thumbnail_data_url(frame, center_xy=None, width=480, crop_scale=0.65, jpeg_quality=75):
+def create_frame_thumbnail_data_url(frame, center_xy=None, width=960, crop_scale=0.65, jpeg_quality=85):
     """Convert a frame to compact JPEG data URL for web UI preview."""
     image_h, image_w = frame.shape[:2]
 
@@ -290,7 +294,7 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
                 detection_state["streak"],
             )
 
-            if full_status[group - 1] == 0:  # Only save if bin is not full
+            if full_status[group - 1] < FULL_THRESHOLD_PERCENT:
                 saved_any = True
         elif valid_group is not None:
             logger.debug(
@@ -335,6 +339,7 @@ def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, dete
                 logger.warning("Ignored non-bin serial payload: %s", response)
             else:
                 full_status = parsed_status
+                detection_status.update_full_status(full_status)
                 print(f"Received bin status: {full_status}")
 
         read_t0 = time.perf_counter()
@@ -426,7 +431,8 @@ def main():
     try:
         time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
         log_stage(start_time, "Pre-loop delay done")
-        full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
+        full_status = [0.0] * 4
+        detection_status.update_full_status(full_status)
         # Debounce state: track last time command was sent to prevent rapid re-triggering
         detection_state = {
             'last_send_time': 0,

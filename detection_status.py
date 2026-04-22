@@ -9,6 +9,7 @@ _detection_status = {
     "detected_labels": [],
     "detected_groups": [],
     "frame_thumbnail": "",
+    "full_status": [0.0, 0.0, 0.0, 0.0],
     "sequence": 0,
     "counts": {
         "group_1": 0,
@@ -26,6 +27,14 @@ def update_detection(detected_labels, detected_groups, frame_thumbnail=""):
         _detection_status["detected_labels"] = list(detected_labels)
         _detection_status["detected_groups"] = list(detected_groups)
         _detection_status["frame_thumbnail"] = frame_thumbnail
+        _detection_status["sequence"] += 1
+        _status_condition.notify_all()
+
+
+def update_full_status(full_status):
+    """Update current bin fill percentages and notify listeners."""
+    with _status_condition:
+        _detection_status["full_status"] = list(full_status)
         _detection_status["sequence"] += 1
         _status_condition.notify_all()
 
@@ -51,6 +60,7 @@ def get_status():
             "detected_labels": list(_detection_status["detected_labels"]),
             "detected_groups": list(_detection_status["detected_groups"]),
             "frame_thumbnail": _detection_status["frame_thumbnail"],
+            "full_status": list(_detection_status["full_status"]),
             "counts": _detection_status["counts"].copy()
         }
 
@@ -68,6 +78,7 @@ def wait_for_update(last_sequence, timeout=30):
             "detected_labels": list(_detection_status["detected_labels"]),
             "detected_groups": list(_detection_status["detected_groups"]),
             "frame_thumbnail": _detection_status["frame_thumbnail"],
+            "full_status": list(_detection_status["full_status"]),
             "counts": _detection_status["counts"].copy()
         }
 
