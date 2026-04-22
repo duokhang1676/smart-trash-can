@@ -30,6 +30,56 @@ def log_stage(start_time, message):
     logger.info("[+%.3fs] %s", elapsed, message)
 
 
+class LatestFrameBuffer:
+    """Background reader that always keeps only the newest camera frame."""
+
+    def __init__(self, cap):
+        self.cap = cap
+        self.lock = threading.Lock()
+        self.latest_frame = None
+        self.latest_id = 0
+        self.running = False
+        self.thread = None
+
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self.thread.start()
+        logger.info("LatestFrameBuffer started")
+
+    def _reader_loop(self):
+        while self.running:
+            ret, frame = self.cap.read()
+            if not ret:
+                logger.warning("Camera read failed in LatestFrameBuffer")
+                time.sleep(0.01)
+                continue
+
+            with self.lock:
+                self.latest_frame = frame
+                self.latest_id += 1
+
+    def get_latest(self, last_frame_id, timeout=0.3):
+        deadline = time.perf_counter() + timeout
+        while time.perf_counter() < deadline:
+            with self.lock:
+                frame_id = self.latest_id
+                frame = self.latest_frame
+
+            if frame is not None and frame_id != last_frame_id:
+                return frame_id, frame.copy()
+
+            time.sleep(0.002)
+
+        return None, None
+
+    def stop(self):
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=1)
+        logger.info("LatestFrameBuffer stopped")
+
+
 def parse_bin_status(response, expected_count=4):
     """Parse comma-separated bin status values safely.
 
@@ -206,19 +256,18 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
             save_queue.put((image_path, label_path, frame.copy(), yolo_lines[:]))
 
 # Main loop to read from camera, process frames, and handle serial communication.
-def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
-    if not cap.isOpened():
-        print("Can't open camera")
-        return
-
+def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     frame_count = 0
+    last_frame_id = 0
     loop_started = time.perf_counter()
     logger.info("main_loop started")
     while True:
         frame_count += 1
 
         serial_t0 = time.perf_counter()
-        response = ser.readline().decode().strip()
+        response = ""
+        if ser.in_waiting > 0:
+            response = ser.readline().decode(errors="ignore").strip()
         serial_wait_ms = (time.perf_counter() - serial_t0) * 1000.0
         if serial_wait_ms > 700:
             logger.warning("Serial read wait: %.1f ms", serial_wait_ms)
@@ -232,14 +281,16 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_sta
                 print(f"Received bin status: {full_status}")
 
         read_t0 = time.perf_counter()
-        ret, frame = cap.read()
+        frame_id, frame = frame_buffer.get_latest(last_frame_id, timeout=0.3)
         read_ms = (time.perf_counter() - read_t0) * 1000.0
         if read_ms > 200:
             logger.warning("Camera read slow: %.1f ms", read_ms)
 
-        if not ret:
-            logger.error("Camera returned no frame at count=%d", frame_count)
-            break
+        if frame is None:
+            logger.warning("No new frame available at count=%d", frame_count)
+            continue
+
+        last_frame_id = frame_id
         
         # frame_count += 1
         # if frame_count % 5 != 0:
@@ -278,6 +329,11 @@ def main():
         cap.read()
     log_stage(start_time, "Camera warm-up finished")
 
+    log_stage(start_time, "Starting latest-frame buffer")
+    frame_buffer = LatestFrameBuffer(cap)
+    frame_buffer.start()
+    log_stage(start_time, "Latest-frame buffer started")
+
     # Warm-up model
     log_stage(start_time, "Model warm-up started")
     dummy = np.zeros((320, 320, 3), dtype=np.uint8)
@@ -286,7 +342,7 @@ def main():
     log_stage(start_time, "Model warm-up finished")
 
     log_stage(start_time, f"Opening serial: {SERIAL_PORT} @ {BAUDRATE}")
-    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
+    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0)
     log_stage(start_time, "Serial opened")
 
     time.sleep(2)  # Wait for serial connection to initialize.
@@ -320,13 +376,15 @@ def main():
             'debounce_seconds': 2.5  # Wait 2.5 seconds between commands for same object
         }
         log_stage(start_time, "Entering main_loop")
-        main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
+        main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
         log_stage(start_time, "main_loop returned")
     except Exception:
         logger.exception("Unhandled exception in main")
         raise
     finally:
         log_stage(start_time, "Cleanup started")
+        frame_buffer.stop()
+        ser.close()
         save_queue.put(None)
         save_queue.join()
         save_thread.join()
