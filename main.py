@@ -17,6 +17,9 @@ SERIAL_PORT = "/dev/ttyUSB0" #'COM12' # /dev/ttyUSB0
 CAMERA_PATH = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1640, height=1232, framerate=30/1 ! nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
 DATASET_DIR = "dataset"
 BAUDRATE = 9600
+CONFIRM_FRAMES = 3
+RESET_MISSED_FRAMES = 5
+MIN_SEND_INTERVAL_SEC = 0.8
 
 logging.basicConfig(
     level=logging.INFO,
@@ -101,6 +104,44 @@ def parse_bin_status(response, expected_count=4):
         parsed.append(1 if value >= 0.5 else 0)
 
     return parsed
+
+
+def should_send_group(valid_group, detection_state):
+    """Return True only when a group is stable for enough consecutive frames.
+
+    A sent group is locked and will not be sent again until detections are lost
+    for RESET_MISSED_FRAMES frames.
+    """
+    current_time = time.time()
+
+    if valid_group is None:
+        detection_state["candidate_group"] = None
+        detection_state["streak"] = 0
+        detection_state["missed_frames"] += 1
+        if detection_state["missed_frames"] >= detection_state["reset_missed_frames"]:
+            detection_state["locked_group"] = None
+        return False
+
+    detection_state["missed_frames"] = 0
+
+    if detection_state["candidate_group"] == valid_group:
+        detection_state["streak"] += 1
+    else:
+        detection_state["candidate_group"] = valid_group
+        detection_state["streak"] = 1
+
+    if detection_state["locked_group"] == valid_group:
+        return False
+
+    if detection_state["streak"] < detection_state["confirm_frames"]:
+        return False
+
+    if current_time - detection_state["last_send_time"] < detection_state["min_send_interval_sec"]:
+        return False
+
+    detection_state["last_send_time"] = current_time
+    detection_state["locked_group"] = valid_group
+    return True
 
 # Define groups of trash for 4 bins
 group_1 = ["plastic"]
@@ -226,23 +267,38 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
                 best_conf = conf
                 best_center_xy = ((x1 + x2) // 2, (y1 + y2) // 2)
 
+        valid_group = None
         if len(detected_groups) == 1 and None not in detected_groups:
-            for group in detected_groups:
-                # Update last send time to enable debouncing
-                detection_state['last_send_time'] = time.time()
-                # Increment count for valid group
-                detection_status.increment_counts(group)
-                if group == 1:
-                    ser.write(b'1')
-                elif group == 2:
-                    ser.write(b'2')
-                elif group == 3:
-                    ser.write(b'3')
-                elif group == 4:
-                    ser.write(b'4')
-                # Save frame and labels for valid detection
-                if full_status[group - 1] == 0:  # Only save if bin is not full
-                    saved_any = True
+            valid_group = next(iter(detected_groups))
+
+        should_send = should_send_group(valid_group, detection_state)
+        if should_send and valid_group is not None:
+            group = valid_group
+            detection_status.increment_counts(group)
+            if group == 1:
+                ser.write(b'1')
+            elif group == 2:
+                ser.write(b'2')
+            elif group == 3:
+                ser.write(b'3')
+            elif group == 4:
+                ser.write(b'4')
+
+            logger.info(
+                "Sent group=%d after %d stable frames",
+                group,
+                detection_state["streak"],
+            )
+
+            if full_status[group - 1] == 0:  # Only save if bin is not full
+                saved_any = True
+        elif valid_group is not None:
+            logger.debug(
+                "Hold send: group=%d streak=%d locked=%s",
+                valid_group,
+                detection_state["streak"],
+                detection_state["locked_group"],
+            )
 
         # Update web UI with detected labels and detected frame thumbnail.
         frame_thumbnail = create_frame_thumbnail_data_url(frame, center_xy=best_center_xy)
@@ -373,7 +429,13 @@ def main():
         # Debounce state: track last time command was sent to prevent rapid re-triggering
         detection_state = {
             'last_send_time': 0,
-            'debounce_seconds': 2.5  # Wait 2.5 seconds between commands for same object
+            'min_send_interval_sec': MIN_SEND_INTERVAL_SEC,
+            'confirm_frames': CONFIRM_FRAMES,
+            'reset_missed_frames': RESET_MISSED_FRAMES,
+            'candidate_group': None,
+            'streak': 0,
+            'missed_frames': 0,
+            'locked_group': None,
         }
         log_stage(start_time, "Entering main_loop")
         main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
