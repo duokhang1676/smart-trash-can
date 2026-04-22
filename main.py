@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import time
+import logging
 import serial
 import os
 import base64
@@ -16,6 +17,17 @@ SERIAL_PORT = "/dev/ttyUSB0" #'COM12' # /dev/ttyUSB0
 CAMERA_PATH = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1640, height=1232, framerate=30/1 ! nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
 DATASET_DIR = "dataset"
 BAUDRATE = 9600
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+logger = logging.getLogger("smart-trash-can")
+
+
+def log_stage(start_time, message):
+    elapsed = time.perf_counter() - start_time
+    logger.info("[+%.3fs] %s", elapsed, message)
 
 # Define groups of trash for 4 bins
 group_1 = ["plastic"]
@@ -75,9 +87,11 @@ def create_dataset_files(model):
 
 # Worker thread to save images and labels without blocking main loop.
 def save_worker(save_queue):
+    logger.info("save_worker thread started")
     while True:
         item = save_queue.get()
         if item is None:
+            logger.info("save_worker received stop signal")
             save_queue.task_done()
             break
 
@@ -88,6 +102,7 @@ def save_worker(save_queue):
         print(f"Image saved: {image_path}")
         print(f"Labels saved: {label_path}")
         save_queue.task_done()
+    logger.info("save_worker thread stopped")
 
 # Helper function to determine which group a label belongs to.
 def get_group_for_label(label):
@@ -103,8 +118,12 @@ def get_group_for_label(label):
 
 # Process a single frame: detect objects, determine groups, send serial commands, and queue saves.
 def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
+    detect_started = time.perf_counter()
     # Detect
     results = model(frame, conf=0.5)
+    infer_ms = (time.perf_counter() - detect_started) * 1000.0
+    if infer_ms > 300:
+        logger.warning("Slow inference: %.1f ms", infer_ms)
     if len(results[0].boxes) > 0:
         # Debounce: skip if command was sent recently (within debounce_seconds)
         current_time = time.time()
@@ -170,13 +189,29 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_sta
         return
 
     frame_count = 0
+    loop_started = time.perf_counter()
+    logger.info("main_loop started")
     while True:
+        frame_count += 1
+
+        serial_t0 = time.perf_counter()
         response = ser.readline().decode().strip()
+        serial_wait_ms = (time.perf_counter() - serial_t0) * 1000.0
+        if serial_wait_ms > 700:
+            logger.warning("Serial read wait: %.1f ms", serial_wait_ms)
+
         if response:
             full_status = [int(x) for x in response.split(',') if x.strip()]
             print(f"Received bin status: {full_status}")
+
+        read_t0 = time.perf_counter()
         ret, frame = cap.read()
+        read_ms = (time.perf_counter() - read_t0) * 1000.0
+        if read_ms > 200:
+            logger.warning("Camera read slow: %.1f ms", read_ms)
+
         if not ret:
+            logger.error("Camera returned no frame at count=%d", frame_count)
             break
         
         # frame_count += 1
@@ -184,50 +219,93 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_sta
         #     continue
         process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
 
+        if frame_count % 30 == 0:
+            elapsed = time.perf_counter() - loop_started
+            fps = frame_count / elapsed if elapsed > 0 else 0.0
+            logger.info("Loop heartbeat: frames=%d, avg_fps=%.2f", frame_count, fps)
+
+    logger.info("main_loop exited")
+
 # Main entry point: initialize model, camera, serial, and start processing loop.
 def main():
+    start_time = time.perf_counter()
+    log_stage(start_time, "Program start")
+
+    log_stage(start_time, f"Loading model: {MODEL_PATH}")
     model = YOLO(MODEL_PATH, task="detect")
+    log_stage(start_time, "Model loaded")
+
+    log_stage(start_time, "Opening camera")
     cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_GSTREAMER)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    log_stage(start_time, "Camera open request sent")
+
+    if not cap.isOpened():
+        logger.error("Can't open camera")
+        return
+    log_stage(start_time, "Camera is opened")
+
     # Warm-up camera
+    log_stage(start_time, "Camera warm-up started")
     for _ in range(10):
         cap.read()
+    log_stage(start_time, "Camera warm-up finished")
 
     # Warm-up model
+    log_stage(start_time, "Model warm-up started")
     dummy = np.zeros((320, 320, 3), dtype=np.uint8)
     for _ in range(5):
         model(dummy)
+    log_stage(start_time, "Model warm-up finished")
 
+    log_stage(start_time, f"Opening serial: {SERIAL_PORT} @ {BAUDRATE}")
     ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
+    log_stage(start_time, "Serial opened")
+
     time.sleep(2)  # Wait for serial connection to initialize.
+    log_stage(start_time, "Serial init wait done")
 
+    log_stage(start_time, "Preparing dataset directories")
     images_dir, labels_dir = create_dataset_files(model)
+    log_stage(start_time, f"Dataset ready: images={images_dir}, labels={labels_dir}")
 
+    log_stage(start_time, "Starting save worker thread")
     save_queue = queue.Queue()
     save_thread = threading.Thread(target=save_worker, args=(save_queue,), daemon=True)
     save_thread.start()
+    log_stage(start_time, "Save worker thread started")
 
     # Start web server in separate thread
+    log_stage(start_time, "Starting web server thread")
     web_thread = threading.Thread(target=web_server.start_web_server, args=(5000,), daemon=True)
     time.sleep(2)  # Give web server a moment to start before main loop begins.
     web_thread.start()
-    print("Web server started at http://localhost:5000")
+    logger.info("Web server started at http://localhost:5000")
+    log_stage(start_time, "Web server thread started")
 
     try:
         time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
+        log_stage(start_time, "Pre-loop delay done")
         full_status = [0] * 4  # Assuming 4 bins (1 = full, 0 = not full)
         # Debounce state: track last time command was sent to prevent rapid re-triggering
         detection_state = {
             'last_send_time': 0,
             'debounce_seconds': 2.5  # Wait 2.5 seconds between commands for same object
         }
+        log_stage(start_time, "Entering main_loop")
         main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
+        log_stage(start_time, "main_loop returned")
+    except Exception:
+        logger.exception("Unhandled exception in main")
+        raise
     finally:
+        log_stage(start_time, "Cleanup started")
         save_queue.put(None)
         save_queue.join()
         save_thread.join()
         cap.release()
         cv2.destroyAllWindows()
+        log_stage(start_time, "Cleanup finished")
 
 
 if __name__ == "__main__":
