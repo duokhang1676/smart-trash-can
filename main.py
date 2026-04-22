@@ -239,10 +239,6 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
     if infer_ms > 300:
         logger.warning("Slow inference: %.1f ms", infer_ms)
     if len(results[0].boxes) > 0:
-        # Debounce: skip if command was sent recently (within debounce_seconds)
-        current_time = time.time()
-        if current_time - detection_state['last_send_time'] < detection_state['debounce_seconds']:
-            return  # Skip processing - too soon after last detection
         saved_any = False
         image_h, image_w = frame.shape[:2]
         yolo_lines = []
