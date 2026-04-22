@@ -18,8 +18,9 @@ CAMERA_PATH = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1640, height=1
 DATASET_DIR = "dataset"
 BAUDRATE = 9600
 CONFIRM_FRAMES = 3
-RESET_MISSED_FRAMES = 5
+RESET_MISSED_FRAMES = 2
 MIN_SEND_INTERVAL_SEC = 0.8
+REARM_SAME_GROUP_SEC = 2.0
 
 logging.basicConfig(
     level=logging.INFO,
@@ -131,7 +132,10 @@ def should_send_group(valid_group, detection_state):
         detection_state["streak"] = 1
 
     if detection_state["locked_group"] == valid_group:
-        return False
+        # Re-arm same label after a short cooldown so a new object can trigger again.
+        if current_time - detection_state["last_send_time"] < detection_state["rearm_same_group_sec"]:
+            return False
+        detection_state["locked_group"] = None
 
     if detection_state["streak"] < detection_state["confirm_frames"]:
         return False
@@ -426,6 +430,7 @@ def main():
         detection_state = {
             'last_send_time': 0,
             'min_send_interval_sec': MIN_SEND_INTERVAL_SEC,
+            'rearm_same_group_sec': REARM_SAME_GROUP_SEC,
             'confirm_frames': CONFIRM_FRAMES,
             'reset_missed_frames': RESET_MISSED_FRAMES,
             'candidate_group': None,
