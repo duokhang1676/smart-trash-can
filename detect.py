@@ -29,6 +29,7 @@ def main():
 
     try:
         while True:
+            print("Processing frame...")
             ret, frame = cap.read()
             if not ret:
                 break
@@ -44,7 +45,7 @@ def main():
             if labels:
                 print("Detected:", ", ".join(labels))
 
-            cv2.imshow("Detection", annotated_frame)
+            # cv2.imshow("Detection", annotated_frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
