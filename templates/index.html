@@ -101,24 +101,25 @@
         }
 
         .brand-logo {
-            width: 54px;
-            height: 54px;
+            width: 82px;
+            height: 82px;
             object-fit: contain;
             filter: drop-shadow(0 6px 12px rgba(20, 90, 93, 0.24));
         }
 
         .brand-title {
             font-family: "Space Grotesk", sans-serif;
-            font-size: clamp(1.2rem, 3vw, 2rem);
+            font-size: clamp(1.5rem, 3.4vw, 2.45rem);
             font-weight: 700;
             text-align: center;
             letter-spacing: 1px;
             text-transform: uppercase;
+            color: #16a34a;
         }
 
-        .brand-title .s1 { color: #0f766e; }
-        .brand-title .s2 { color: #0ea5e9; }
-        .brand-title .s3 { color: #16a34a; }
+        .brand-title .s1,
+        .brand-title .s2,
+        .brand-title .s3 { color: inherit; }
 
         .socket-chip {
             font-size: 0.85rem;
@@ -131,7 +132,7 @@
             border-radius: 16px;
             object-fit: contain;
             border: 1px solid var(--stroke);
-            background: #0f1720;
+            background: #ffffff;
         }
 
         .hero-label {
@@ -261,7 +262,7 @@
 
         .bottom-grid {
             display: grid;
-            grid-template-columns: 1fr 300px;
+            grid-template-columns: minmax(0, 1.15fr) 280px;
             gap: 16px;
         }
 
@@ -281,7 +282,7 @@
         .quadrant {
             position: relative;
             width: 100%;
-            min-height: 218px;
+            min-height: 272px;
             padding: 10px;
             display: grid;
             place-items: center;
@@ -305,7 +306,7 @@
             border-radius: 10px;
             padding: 8px;
             width: 100%;
-            min-height: 188px;
+            min-height: 244px;
             text-align: center;
             display: grid;
             align-content: start;
@@ -314,11 +315,12 @@
 
         .bin-photo {
             width: 100%;
-            height: 82px;
-            object-fit: cover;
+            height: 132px;
+            object-fit: contain;
             border-radius: 8px;
             border: 1px solid var(--stroke);
             margin-bottom: 2px;
+            background: #ffffff;
         }
 
         .quad-title {
@@ -384,15 +386,6 @@
 
         .circle-center {
             display: none;
-            border-radius: 14px;
-            background: #fff;
-            border: 1px solid var(--stroke);
-            display: grid;
-            place-items: center;
-            font-size: 0.82rem;
-            font-weight: 600;
-            text-align: center;
-            padding: 10px 6px;
         }
 
         .drag-panel {
@@ -530,7 +523,7 @@
             <div class="shell">
                 <aside class="panel recent-panel">
                     <div class="recent-title">
-                        <h3>Latest Throw</h3>
+                        <h3>10 Recent Throws</h3>
                         <span class="live-dot" aria-hidden="true"></span>
                     </div>
                     <ul class="recent-list" id="recent-list"></ul>
@@ -639,6 +632,7 @@
 
         let socket = null;
         let groups = structuredClone(DEFAULT_GROUPS);
+        let recentThrows = [];
 
         function colorForLabel(label) {
             const palette = ["#ffbe0b", "#2a9d8f", "#79c7ff", "#fb8500", "#457b9d", "#e76f51"];
@@ -676,22 +670,31 @@
             document.getElementById("main-label").textContent = mainLabel.toUpperCase();
         }
 
+        function pushRecent(label, thumbUrl) {
+            recentThrows.unshift({
+                label,
+                time: new Date().toLocaleTimeString(),
+                thumbUrl
+            });
+            recentThrows = recentThrows.slice(0, 10);
+            renderRecentList();
+        }
+
         function renderRecentList() {
             const list = document.getElementById("recent-list");
-            const latest = window.latestThrow || null;
-            if (!latest) {
-                list.innerHTML = '<li class="recent-item"><img class="thumb" alt="No item" src="' + makeThumbDataUrl("waiting") + '"><div><h4>No data yet</h4><p>Single latest throw will appear here.</p></div></li>';
+            if (!recentThrows.length) {
+                list.innerHTML = '<li class="recent-item"><img class="thumb" alt="No item" src="' + makeThumbDataUrl("waiting") + '"><div><h4>No data yet</h4><p>List will update when throw events arrive.</p></div></li>';
                 return;
             }
-            list.innerHTML = `
+            list.innerHTML = recentThrows.map((item) => `
                 <li class="recent-item">
-                    <img class="thumb" src="${latest.thumbUrl}" alt="${latest.label}">
+                    <img class="thumb" src="${item.thumbUrl}" alt="${item.label}">
                     <div>
-                        <h4>${latest.label}</h4>
-                        <p>${latest.time}</p>
+                        <h4>${item.label}</h4>
+                        <p>${item.time}</p>
                     </div>
                 </li>
-            `;
+            `).join("");
         }
 
         function findBinByLabel(label) {
@@ -768,12 +771,7 @@
             }
 
             if (labels.length) {
-                window.latestThrow = {
-                    label: labels[0],
-                    time: new Date().toLocaleTimeString(),
-                    thumbUrl
-                };
-                renderRecentList();
+                labels.forEach((label) => pushRecent(label, thumbUrl));
             }
         }
 
@@ -887,7 +885,7 @@
         function initUi() {
             const waitingThumb = makeThumbDataUrl("waiting");
             document.getElementById("current-frame").src = waitingThumb;
-            window.latestThrow = null;
+            recentThrows = [];
             renderRecentList();
             renderGroupTypes();
             initDragDrop();
