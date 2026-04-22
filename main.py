@@ -29,6 +29,29 @@ def log_stage(start_time, message):
     elapsed = time.perf_counter() - start_time
     logger.info("[+%.3fs] %s", elapsed, message)
 
+
+def parse_bin_status(response, expected_count=4):
+    """Parse comma-separated bin status values safely.
+
+    Accepts integers or float-like tokens (e.g. 1, 0, 1.0),
+    then normalizes each value to 0/1.
+    Returns None when payload is not a valid bin-status message.
+    """
+    tokens = [token.strip() for token in response.split(",") if token.strip()]
+    if len(tokens) != expected_count:
+        return None
+
+    parsed = []
+    for token in tokens:
+        try:
+            value = float(token)
+        except ValueError:
+            return None
+
+        parsed.append(1 if value >= 0.5 else 0)
+
+    return parsed
+
 # Define groups of trash for 4 bins
 group_1 = ["plastic"]
 group_2 = ["paper", "tissue"]
@@ -201,8 +224,12 @@ def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_sta
             logger.warning("Serial read wait: %.1f ms", serial_wait_ms)
 
         if response:
-            full_status = [int(x) for x in response.split(',') if x.strip()]
-            print(f"Received bin status: {full_status}")
+            parsed_status = parse_bin_status(response, expected_count=len(full_status))
+            if parsed_status is None:
+                logger.warning("Ignored non-bin serial payload: %s", response)
+            else:
+                full_status = parsed_status
+                print(f"Received bin status: {full_status}")
 
         read_t0 = time.perf_counter()
         ret, frame = cap.read()

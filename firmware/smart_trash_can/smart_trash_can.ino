@@ -98,8 +98,6 @@ bool updateFullStatusAndLed() {
 
   for (uint8_t i = 0; i < BIN_COUNT; i++) {
     float d = readDistance(trigPins[i], echoPins[i]);
-    Serial.print(d);
-    Serial.print("\n");
     if (d < 10) {
       // throwToBin(i);
       digitalWrite(ledPins[i], HIGH);
@@ -115,7 +113,6 @@ bool updateFullStatusAndLed() {
 
     delay(50);
   }
-  Serial.print("\n");
   return changed;
 }
 
