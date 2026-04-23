@@ -1,12 +1,13 @@
 import Jetson.GPIO as GPIO
 import time
-import os
+import subprocess
 
 BUTTON_PIN = 12
 BUZZER_PIN = 19
 
 CONTAINER_NAME = "iot-2708"
-MAIN_PATH = "/ultralytics/workspace/smart-trash-can/main.py"
+CONTAINER_WORKDIR = "/ultralytics/workspace/smart-trash-can"
+MAIN_SCRIPT = "main.py"
 
 DOUBLE_CLICK_TIME = 0.4
 LONG_PRESS_TIME = 2
@@ -28,22 +29,56 @@ def beep(duration):
     GPIO.output(BUZZER_PIN, GPIO.LOW)
 
 
-def start_main():
-    print("Start main.py")
-    command = (
-        f"docker exec -d {CONTAINER_NAME} "
-        f"python3 {MAIN_PATH}"
+def run_command(command):
+    subprocess.run(command, check=False)
+
+
+def is_main_running():
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            CONTAINER_NAME,
+            "sh",
+            "-lc",
+            "pgrep -af 'python3 .*main.py' | grep -v pgrep",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    os.system(command)
+    return bool(result.stdout.strip())
+
+
+def start_main():
+    if is_main_running():
+        print("main.py is already running")
+        return
+
+    print("Start main.py")
+    run_command([
+        "docker",
+        "exec",
+        "-d",
+        "-w",
+        CONTAINER_WORKDIR,
+        CONTAINER_NAME,
+        "python3",
+        "-u",
+        MAIN_SCRIPT,
+    ])
 
 
 def stop_main():
     print("Stop main.py")
-    command = (
-        f"docker exec {CONTAINER_NAME} "
-        f"pkill -2 -f 'python3 {MAIN_PATH}'"
-    )
-    os.system(command)
+    run_command([
+        "docker",
+        "exec",
+        CONTAINER_NAME,
+        "sh",
+        "-lc",
+        "pkill -2 -f 'python3 -u main.py' || pkill -2 -f 'python3 main.py'",
+    ])
 
 
 try:
