@@ -77,7 +77,14 @@ def start_web_server(port=5000):
     """Start Flask web server with WebSocket support."""
     start_notification_thread()
     try:
-        socketio.run(app, host="0.0.0.0", port=port, debug=False, use_reloader=False)
+        socketio.run(
+            app,
+            host="0.0.0.0",
+            port=port,
+            debug=False,
+            use_reloader=False,
+            allow_unsafe_werkzeug=True,
+        )
     finally:
         stop_notification_thread()
 
