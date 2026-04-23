@@ -67,7 +67,7 @@ def start_main():
             CONTAINER_NAME,
             "bash",
             "-c",
-            "nohup python3 -u main.py > /tmp/main.log 2>&1 &",
+            "source ~/.bashrc && nohup python3 -u main.py > /tmp/main.log 2>&1 &",
         ]
         print(f"Running command: {' '.join(cmd)}")
         result = subprocess.run(
