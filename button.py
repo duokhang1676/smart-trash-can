@@ -43,8 +43,9 @@ def is_main_running():
             "-lc",
             "pgrep -af 'python3 .*main.py' | grep -v pgrep",
         ],
-        capture_output=True,
-        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
         check=False,
     )
     return bool(result.stdout.strip())
