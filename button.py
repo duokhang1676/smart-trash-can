@@ -37,7 +37,7 @@ def start_main():
         f"bash -c "
         f"\"export PYTHONPATH=/usr/local/lib/python3.8/site-packages:$PYTHONPATH && "
         f"cd {PROJECT_PATH} && "
-        f"python3 main.py\""
+        f"python3 main.py > main.log 2>&1\""
     )
 
     os.system(command)
