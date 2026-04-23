@@ -1,0 +1,16 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^type \\.\\\\detection_status\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"import flask; import flask_socketio; print\\('Success'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -m flask --app web_server run$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

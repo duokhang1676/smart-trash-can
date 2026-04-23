@@ -714,6 +714,7 @@
 
         let socket = null;
         let statusPollTimer = null;
+        let lastDetectionSequence = -1;
 
         function cloneDefaultGroups() {
             if (typeof structuredClone === "function") {
@@ -888,12 +889,15 @@
 
         function applyStatus(data) {
             const labels = Array.isArray(data.detected_labels) ? data.detected_labels : [];
-            renderMainLabel(labels);
-            setDetectedBinPreview(data.detected_groups);
+            const hasDetectionVisual = Boolean(data.frame_thumbnail) || labels.length > 0;
+            if (hasDetectionVisual) {
+                renderMainLabel(labels);
+                setDetectedBinPreview(data.detected_groups);
 
-            const mainLabel = labels[0] || "none";
-            const thumbUrl = data.frame_thumbnail || makeThumbDataUrl(mainLabel);
-            document.getElementById("current-frame").src = thumbUrl;
+                const mainLabel = labels[0] || "none";
+                const thumbUrl = data.frame_thumbnail || makeThumbDataUrl(mainLabel);
+                document.getElementById("current-frame").src = thumbUrl;
+            }
 
             renderCounts(data.counts || {});
 
@@ -903,8 +907,17 @@
                 }
             }
 
-            if (labels.length) {
-                labels.forEach((label) => pushRecent(label, thumbUrl));
+            const detectionSequence = Number.isFinite(Number(data.detection_sequence))
+                ? Number(data.detection_sequence)
+                : null;
+            const hasNewDetection = detectionSequence !== null && detectionSequence > lastDetectionSequence;
+
+            if (hasNewDetection) {
+                lastDetectionSequence = detectionSequence;
+            }
+
+            if (hasNewDetection && labels.length && data.frame_thumbnail) {
+                labels.forEach((label) => pushRecent(label, data.frame_thumbnail));
             }
         }
 
