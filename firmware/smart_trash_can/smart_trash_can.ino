@@ -91,7 +91,7 @@ void getCapacity(int capacity[], int full[]) {
   for (uint8_t i = 0; i < BIN_COUNT; i++) {
     float d = readDistance(trigPins[i], echoPins[i]);
     if (d < 10) {
-      capacity[i] = 0;
+      capacity[i] = 100;
       full[i] = 1;
       digitalWrite(ledPins[i], HIGH);
     } else {

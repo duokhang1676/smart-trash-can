@@ -713,7 +713,16 @@
         };
 
         let socket = null;
-        let groups = structuredClone(DEFAULT_GROUPS);
+        let statusPollTimer = null;
+
+        function cloneDefaultGroups() {
+            if (typeof structuredClone === "function") {
+                return structuredClone(DEFAULT_GROUPS);
+            }
+            return JSON.parse(JSON.stringify(DEFAULT_GROUPS));
+        }
+
+        let groups = cloneDefaultGroups();
         let recentThrows = [];
 
         function colorForLabel(label) {
@@ -842,8 +851,31 @@
             const safePercent = Math.max(0, Math.min(100, Number(fillPercent) || 0));
             const capText = document.getElementById(`capacity-text-${index}`);
             const capFill = document.getElementById(`capacity-group-${index}`);
+            if (!capText || !capFill) {
+                return;
+            }
             capText.textContent = `${safePercent.toFixed(0)}%`;
             capFill.style.width = `${safePercent}%`;
+        }
+
+        async function fetchStatusSnapshot() {
+            try {
+                const response = await fetch("/api/status", { cache: "no-store" });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                applyStatus(data);
+            } catch (_err) {
+                // Keep silent; websocket remains primary transport.
+            }
+        }
+
+        function startStatusPolling() {
+            if (statusPollTimer) {
+                return;
+            }
+            statusPollTimer = setInterval(fetchStatusSnapshot, 1500);
         }
 
         function renderCounts(counts) {
@@ -928,6 +960,7 @@
 
             socket.on("connect", () => {
                 setSocketState("Connected");
+                fetchStatusSnapshot();
             });
 
             socket.on("status_update", (data) => {
@@ -941,6 +974,9 @@
             socket.on("connect_error", () => {
                 setSocketState("Connect error");
             });
+
+            // Fallback in case websocket events are blocked or delayed.
+            startStatusPolling();
         }
 
         function resetCounts() {
@@ -950,7 +986,7 @@
         }
 
         function resetGroups() {
-            groups = structuredClone(DEFAULT_GROUPS);
+            groups = cloneDefaultGroups();
             renderGroupTypes();
         }
 
@@ -990,6 +1026,7 @@
             initDragDrop();
             initSettingsToggle();
             initSocket();
+            fetchStatusSnapshot();
         }
 
         initUi();
