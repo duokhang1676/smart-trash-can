@@ -152,10 +152,10 @@ def should_send_group(valid_group, detection_state):
     return True
 
 # Define groups of trash for 4 bins
-group_1 = ["plastic"]
-group_2 = ["paper", "tissue"]
-group_3 = ["plastic-bag", "foam-box", "organic", "plastic-cup"]
-group_4 = ["battery", "metal"]
+group_1 = ["plastic", "plastic-bottle", "metal-can"]
+group_2 = ["organic"]
+group_3 = ["plastic-bag", "foam-box", "paper", "tissue", "plastic-cup"]
+group_4 = ["battery"] 
 
 def create_frame_thumbnail_data_url(frame, center_xy=None, width=960, crop_scale=0.65, jpeg_quality=85):
     """Convert a frame to compact JPEG data URL for web UI preview."""

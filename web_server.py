@@ -80,3 +80,7 @@ def start_web_server(port=5000):
         socketio.run(app, host="0.0.0.0", port=port, debug=False, use_reloader=False)
     finally:
         stop_notification_thread()
+
+
+if __name__ == "__main__":
+    start_web_server(5000)

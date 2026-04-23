@@ -102,8 +102,8 @@
         }
 
         .brand-logo {
-            width: 82px;
-            height: 82px;
+            width: 104px;
+            height: 104px;
             object-fit: contain;
             filter: drop-shadow(0 6px 12px rgba(20, 90, 93, 0.24));
         }
@@ -134,6 +134,19 @@
             object-fit: contain;
             border: 1px solid var(--stroke);
             background: #ffffff;
+        }
+
+        .detected-bin-preview {
+            width: min(180px, 42vw);
+            height: 110px;
+            object-fit: contain;
+            background: #ffffff;
+            border: 1px solid var(--stroke);
+            border-radius: 14px;
+            padding: 8px;
+            display: none;
+            margin: 0 auto;
+            box-shadow: 0 10px 24px rgba(19, 88, 94, 0.12);
         }
 
         .hero-label {
@@ -185,23 +198,24 @@
             font-size: 1.3rem;
         }
 
-        .close-btn {
-            border: 1px solid var(--stroke);
-            background: #fff;
-            border-radius: 10px;
-            padding: 8px 12px;
-            cursor: pointer;
-        }
-
         .shell {
             display: grid;
-            grid-template-columns: 340px 1fr;
             gap: 18px;
+        }
+
+        .bins-panel {
+            padding: 16px;
+        }
+
+        .bins-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
         }
 
         .recent-panel {
             padding: 16px;
-            min-height: 760px;
+            min-height: 0;
         }
 
         .recent-title {
@@ -228,7 +242,7 @@
             list-style: none;
             display: grid;
             gap: 10px;
-            max-height: 690px;
+            max-height: 380px;
             overflow: auto;
         }
 
@@ -263,12 +277,12 @@
 
         .bottom-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.15fr) 280px;
+            grid-template-columns: minmax(0, 1fr) 320px;
             gap: 16px;
         }
 
         .circle-panel {
-            padding: 18px;
+            padding: 0;
             display: block;
         }
 
@@ -283,8 +297,8 @@
         .quadrant {
             position: relative;
             width: 100%;
-            min-height: 272px;
-            padding: 10px;
+            min-height: 246px;
+            padding: 8px;
             display: grid;
             place-items: center;
             transition: filter 0.2s ease;
@@ -307,7 +321,7 @@
             border-radius: 10px;
             padding: 8px;
             width: 100%;
-            min-height: 244px;
+            min-height: 222px;
             text-align: center;
             display: grid;
             align-content: start;
@@ -316,7 +330,7 @@
 
         .bin-photo {
             width: 100%;
-            height: 132px;
+            height: 116px;
             object-fit: contain;
             border-radius: 8px;
             border: 1px solid var(--stroke);
@@ -341,14 +355,6 @@
             color: #3e464d;
             line-height: 1.2;
             margin-bottom: 3px;
-        }
-
-        .state-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            font-size: 0.72rem;
         }
 
         .capacity-row {
@@ -383,10 +389,6 @@
 
         .state-dot.full {
             background: var(--full);
-        }
-
-        .circle-center {
-            display: none;
         }
 
         .drag-panel {
@@ -484,10 +486,6 @@
                 height: 44vh;
             }
 
-            .circle-panel {
-                grid-template-columns: 1fr;
-            }
-
             .circle-wrap {
                 grid-template-columns: 1fr;
             }
@@ -520,6 +518,18 @@
                 align-items: flex-start;
             }
 
+            .settings-btn {
+                top: 10px;
+                right: 10px;
+                width: 48px;
+                height: 48px;
+            }
+
+            .detected-bin-preview {
+                width: 120px;
+                height: 78px;
+            }
+
             .main-thumb {
                 grid-area: frame;
                 height: calc(100vh - 70px);
@@ -546,7 +556,7 @@
             }
 
             .shell {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 1fr;
             }
 
             .recent-panel {
@@ -562,21 +572,25 @@
                 grid-template-columns: 1fr;
             }
 
+            .bins-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .circle-wrap {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 10px;
             }
 
             .quadrant {
-                min-height: 200px;
+                min-height: 188px;
             }
 
             .quad-content {
-                min-height: 174px;
+                min-height: 162px;
             }
 
             .bin-photo {
-                height: 96px;
+                height: 84px;
             }
 
             .settings-modal {
@@ -602,6 +616,7 @@
                 <span class="socket-chip" id="socket-state">Connecting...</span>
             </div>
             <img id="current-frame" class="main-thumb" alt="Current frame thumbnail">
+            <img id="detected-bin-preview" class="detected-bin-preview" alt="Detected bin preview">
             <div id="main-label" class="hero-label">NO DETECTION</div>
         </section>
     </main>
@@ -610,99 +625,73 @@
         <div class="settings-modal">
             <div class="settings-head">
                 <h2>Settings</h2>
-                <button id="close-settings" class="close-btn">Close</button>
             </div>
 
             <div class="shell">
-                <aside class="panel recent-panel">
-                    <div class="recent-title">
-                        <h3>10 Recent Throws</h3>
-                        <span class="live-dot" aria-hidden="true"></span>
-                    </div>
-                    <ul class="recent-list" id="recent-list"></ul>
-                </aside>
-
-                <section class="bottom-grid">
-                    <section class="panel circle-panel">
-                        <div class="circle-wrap">
-                            <div class="quadrant q1" data-bin="1">
-                                <div class="quad-content">
-                                    <img class="bin-photo" src="/public/1.png" alt="Bin 1 image">
-                                    <div class="quad-title">Bin 1</div>
-                                    <div class="quad-count" id="count-group-1">0</div>
-                                    <div class="quad-types" id="types-group-1">plastic</div>
-                                    <div class="capacity-row">
-                                        <span>Capacity</span>
-                                        <span id="capacity-text-1">0%</span>
-                                    </div>
-                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-1"></div></div>
-                                    <div class="state-row">
-                                        <span class="state-dot" id="state-group-1"></span>
-                                        <span id="state-text-1">Not Full</span>
-                                    </div>
+                <section class="panel bins-panel">
+                    <div class="circle-wrap bins-grid">
+                        <div class="quadrant q1" data-bin="1">
+                            <div class="quad-content">
+                                <img class="bin-photo" src="/public/1.png" alt="Bin 1 image">
+                                <div class="quad-title">Tái chế</div>
+                                <div class="quad-count" id="count-group-1">0</div>
+                                <div class="capacity-row">
+                                    <span>Capacity</span>
+                                    <span id="capacity-text-1">0%</span>
                                 </div>
-                            </div>
-                            <div class="quadrant q2" data-bin="2">
-                                <div class="quad-content">
-                                    <img class="bin-photo" src="/public/2.png" alt="Bin 2 image">
-                                    <div class="quad-title">Bin 2</div>
-                                    <div class="quad-count" id="count-group-2">0</div>
-                                    <div class="quad-types" id="types-group-2">paper, tissue</div>
-                                    <div class="capacity-row">
-                                        <span>Capacity</span>
-                                        <span id="capacity-text-2">0%</span>
-                                    </div>
-                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-2"></div></div>
-                                    <div class="state-row">
-                                        <span class="state-dot" id="state-group-2"></span>
-                                        <span id="state-text-2">Not Full</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="quadrant q3" data-bin="3">
-                                <div class="quad-content">
-                                    <img class="bin-photo" src="/public/3.png" alt="Bin 3 image">
-                                    <div class="quad-title">Bin 3</div>
-                                    <div class="quad-count" id="count-group-3">0</div>
-                                    <div class="quad-types" id="types-group-3">plastic-bag, foam-box, organic, plastic-cup</div>
-                                    <div class="capacity-row">
-                                        <span>Capacity</span>
-                                        <span id="capacity-text-3">0%</span>
-                                    </div>
-                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-3"></div></div>
-                                    <div class="state-row">
-                                        <span class="state-dot" id="state-group-3"></span>
-                                        <span id="state-text-3">Not Full</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="quadrant q4" data-bin="4">
-                                <div class="quad-content">
-                                    <img class="bin-photo" src="/public/4.png" alt="Bin 4 image">
-                                    <div class="quad-title">Bin 4</div>
-                                    <div class="quad-count" id="count-group-4">0</div>
-                                    <div class="quad-types" id="types-group-4">battery, metal</div>
-                                    <div class="capacity-row">
-                                        <span>Capacity</span>
-                                        <span id="capacity-text-4">0%</span>
-                                    </div>
-                                    <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-4"></div></div>
-                                    <div class="state-row">
-                                        <span class="state-dot" id="state-group-4"></span>
-                                        <span id="state-text-4">Not Full</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="circle-center">
-                                <div>Total<br><strong id="count-total">0</strong></div>
+                                <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-1"></div></div>
                             </div>
                         </div>
+                        <div class="quadrant q2" data-bin="2">
+                            <div class="quad-content">
+                                <img class="bin-photo" src="/public/2.png" alt="Bin 2 image">
+                                <div class="quad-title">Hữu cơ</div>
+                                <div class="quad-count" id="count-group-2">0</div>
+                                <div class="capacity-row">
+                                    <span>Capacity</span>
+                                    <span id="capacity-text-2">0%</span>
+                                </div>
+                                <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-2"></div></div>
+                            </div>
+                        </div>
+                        <div class="quadrant q3" data-bin="3">
+                            <div class="quad-content">
+                                <img class="bin-photo" src="/public/3.png" alt="Bin 3 image">
+                                <div class="quad-title">Vô cơ</div>
+                                <div class="quad-count" id="count-group-3">0</div>
+                                <div class="capacity-row">
+                                    <span>Capacity</span>
+                                    <span id="capacity-text-3">0%</span>
+                                </div>
+                                <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-3"></div></div>
+                            </div>
+                        </div>
+                        <div class="quadrant q4" data-bin="4">
+                            <div class="quad-content">
+                                <img class="bin-photo" src="/public/4.png" alt="Bin 4 image">
+                                <div class="quad-title">Nguy hại</div>
+                                <div class="quad-count" id="count-group-4">0</div>
+                                <div class="capacity-row">
+                                    <span>Capacity</span>
+                                    <span id="capacity-text-4">0%</span>
+                                </div>
+                                <div class="capacity-bar"><div class="capacity-fill" id="capacity-group-4"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-                    </section>
+                <section class="bottom-grid">
+                    <aside class="panel recent-panel">
+                        <div class="recent-title">
+                            <h3>10 Recent Throws</h3>
+                            <span class="live-dot" aria-hidden="true"></span>
+                        </div>
+                        <ul class="recent-list" id="recent-list"></ul>
+                    </aside>
 
                     <aside class="panel drag-panel">
                         <h2>Trash Types</h2>
-                        <p>8 trash types can be assigned into Bin 1/2/3/4.</p>
                         <ul class="trash-list" id="trash-types-list"></ul>
                         <div class="footer-actions">
                             <button class="btn primary" onclick="resetCounts()">Reset Count</button>
@@ -717,10 +706,10 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         const DEFAULT_GROUPS = {
-            1: ["plastic"],
-            2: ["paper", "tissue"],
-            3: ["plastic-bag", "foam-box", "organic", "plastic-cup"],
-            4: ["battery", "metal"]
+            1: ["plastic", "plastic-bottle", "metal-can"],
+            2: ["organic"],
+            3: ["plastic-bag", "foam-box", "paper", "tissue", "plastic-cup"],
+            4: ["battery"]
         };
 
         let socket = null;
@@ -761,6 +750,26 @@
         function renderMainLabel(labels) {
             const mainLabel = labels.length ? labels[0] : "NO DETECTION";
             document.getElementById("main-label").textContent = mainLabel.toUpperCase();
+        }
+
+        function setDetectedBinPreview(groupsValue) {
+            const preview = document.getElementById("detected-bin-preview");
+            const groupId = Array.isArray(groupsValue) && groupsValue.length ? Number(groupsValue[0]) : null;
+            const imageMap = {
+                1: "/public/1.png",
+                2: "/public/2.png",
+                3: "/public/3.png",
+                4: "/public/4.png"
+            };
+
+            if (!groupId || !imageMap[groupId]) {
+                preview.style.display = "none";
+                preview.removeAttribute("src");
+                return;
+            }
+
+            preview.src = imageMap[groupId];
+            preview.style.display = "block";
         }
 
         function pushRecent(label, thumbUrl) {
@@ -821,20 +830,18 @@
 
         function renderGroupTypes() {
             for (let i = 1; i <= 4; i++) {
-                document.getElementById(`types-group-${i}`).textContent = groups[i].join(", ");
+                const groupTypesElement = document.getElementById(`types-group-${i}`);
+                if (groupTypesElement) {
+                    groupTypesElement.textContent = groups[i].join(", ");
+                }
             }
             renderTrashTypesList();
         }
 
         function setBinFullStatus(index, fillPercent) {
             const safePercent = Math.max(0, Math.min(100, Number(fillPercent) || 0));
-            const isFull = safePercent >= 95;
-            const dot = document.getElementById(`state-group-${index}`);
-            const text = document.getElementById(`state-text-${index}`);
             const capText = document.getElementById(`capacity-text-${index}`);
             const capFill = document.getElementById(`capacity-group-${index}`);
-            dot.classList.toggle("full", isFull);
-            text.textContent = isFull ? "Full" : "Not Full";
             capText.textContent = `${safePercent.toFixed(0)}%`;
             capFill.style.width = `${safePercent}%`;
         }
@@ -850,6 +857,7 @@
         function applyStatus(data) {
             const labels = Array.isArray(data.detected_labels) ? data.detected_labels : [];
             renderMainLabel(labels);
+            setDetectedBinPreview(data.detected_groups);
 
             const mainLabel = labels[0] || "none";
             const thumbUrl = data.frame_thumbnail || makeThumbDataUrl(mainLabel);
@@ -948,29 +956,26 @@
 
         function openSettings() {
             const overlay = document.getElementById("settings-overlay");
-            overlay.classList.add("open");
-            overlay.setAttribute("aria-hidden", "false");
-        }
-
-        function closeSettings() {
-            const overlay = document.getElementById("settings-overlay");
-            overlay.classList.remove("open");
-            overlay.setAttribute("aria-hidden", "true");
+            const isOpen = overlay.classList.toggle("open");
+            overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
         }
 
         function initSettingsToggle() {
             document.getElementById("open-settings").addEventListener("click", openSettings);
-            document.getElementById("close-settings").addEventListener("click", closeSettings);
 
             document.getElementById("settings-overlay").addEventListener("click", (event) => {
                 if (event.target.id === "settings-overlay") {
-                    closeSettings();
+                    const overlay = document.getElementById("settings-overlay");
+                    overlay.classList.remove("open");
+                    overlay.setAttribute("aria-hidden", "true");
                 }
             });
 
             document.addEventListener("keydown", (event) => {
                 if (event.key === "Escape") {
-                    closeSettings();
+                    const overlay = document.getElementById("settings-overlay");
+                    overlay.classList.remove("open");
+                    overlay.setAttribute("aria-hidden", "true");
                 }
             });
         }
@@ -978,6 +983,7 @@
         function initUi() {
             const waitingThumb = makeThumbDataUrl("waiting");
             document.getElementById("current-frame").src = waitingThumb;
+            document.getElementById("detected-bin-preview").style.display = "none";
             recentThrows = [];
             renderRecentList();
             renderGroupTypes();
