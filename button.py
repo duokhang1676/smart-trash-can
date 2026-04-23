@@ -44,9 +44,36 @@ def run_cmd(command):
     )
 
 
+def run_nmcli(args):
+    """Run nmcli; fallback to sudo -n when direct call is not authorized."""
+    direct = run_cmd(["nmcli"] + args)
+    if direct.returncode == 0:
+        return direct
+
+    err_text = (direct.stderr or "") + (direct.stdout or "")
+    auth_markers = ["not authorized", "permission denied", "insufficient privileges"]
+    if any(marker in err_text.lower() for marker in auth_markers):
+        return run_cmd(["sudo", "-n", "nmcli"] + args)
+
+    return direct
+
+
+def print_nmcli_auth_hint_if_needed(result):
+    if result.returncode == 0:
+        return
+
+    err_text = ((result.stderr or "") + "\n" + (result.stdout or "")).lower()
+    if "not authorized" in err_text or "a password is required" in err_text:
+        print("Network permission missing for nmcli.")
+        print("Run button with sudo, or grant passwordless nmcli:")
+        print("sudo visudo -f /etc/sudoers.d/90-ecosort-nmcli")
+        print("Add: dk ALL=(root) NOPASSWD:/usr/bin/nmcli")
+
+
 def get_wifi_interface():
-    result = run_cmd(["nmcli", "-t", "-f", "DEVICE,TYPE", "device", "status"])
+    result = run_nmcli(["-t", "-f", "DEVICE,TYPE", "device", "status"])
     if result.returncode != 0:
+        print_nmcli_auth_hint_if_needed(result)
         return None
 
     for line in result.stdout.splitlines():
@@ -57,8 +84,9 @@ def get_wifi_interface():
 
 
 def save_current_wifi_profile():
-    result = run_cmd(["nmcli", "-t", "-f", "NAME,UUID,TYPE", "connection", "show", "--active"])
+    result = run_nmcli(["-t", "-f", "NAME,UUID,TYPE", "connection", "show", "--active"])
     if result.returncode != 0:
+        print_nmcli_auth_hint_if_needed(result)
         return
 
     for line in result.stdout.splitlines():
@@ -79,16 +107,16 @@ def switch_to_hotspot():
     save_current_wifi_profile()
 
     # Reuse hotspot profile if it already exists; otherwise create it.
-    has_hotspot = run_cmd(["nmcli", "-t", "-f", "NAME", "connection", "show"])
+    has_hotspot = run_nmcli(["-t", "-f", "NAME", "connection", "show"])
     if has_hotspot.returncode == 0 and HOTSPOT_CONN_NAME in has_hotspot.stdout:
-        up_result = run_cmd(["nmcli", "connection", "up", HOTSPOT_CONN_NAME, "ifname", interface])
+        up_result = run_nmcli(["connection", "up", HOTSPOT_CONN_NAME, "ifname", interface])
         if up_result.returncode != 0:
             print(f"Cannot enable hotspot profile: {up_result.stderr.strip()}")
+            print_nmcli_auth_hint_if_needed(up_result)
             return False
     else:
-        create_result = run_cmd(
+        create_result = run_nmcli(
             [
-                "nmcli",
                 "device",
                 "wifi",
                 "hotspot",
@@ -104,6 +132,7 @@ def switch_to_hotspot():
         )
         if create_result.returncode != 0:
             print(f"Cannot create hotspot: {create_result.stderr.strip()}")
+            print_nmcli_auth_hint_if_needed(create_result)
             return False
 
     print(f"Hotspot enabled: {HOTSPOT_SSID} (password: {HOTSPOT_PASSWORD})")
@@ -113,7 +142,7 @@ def switch_to_hotspot():
 def restore_previous_wifi_profile():
     interface = get_wifi_interface()
 
-    run_cmd(["nmcli", "connection", "down", HOTSPOT_CONN_NAME])
+    run_nmcli(["connection", "down", HOTSPOT_CONN_NAME])
 
     if not os.path.exists(WIFI_STATE_FILE):
         print("No previous Wi-Fi profile to restore")
@@ -128,21 +157,22 @@ def restore_previous_wifi_profile():
 
         prev_uuid, prev_name = lines[0], lines[1]
 
-        up_by_uuid = ["nmcli", "connection", "up", "uuid", prev_uuid]
+        up_by_uuid = ["connection", "up", "uuid", prev_uuid]
         if interface:
             up_by_uuid.extend(["ifname", interface])
 
-        result = run_cmd(up_by_uuid)
+        result = run_nmcli(up_by_uuid)
         if result.returncode != 0:
-            up_by_name = ["nmcli", "connection", "up", prev_name]
+            up_by_name = ["connection", "up", prev_name]
             if interface:
                 up_by_name.extend(["ifname", interface])
-            result = run_cmd(up_by_name)
+            result = run_nmcli(up_by_name)
 
         if result.returncode == 0:
             print(f"Restored Wi-Fi: {prev_name}")
         else:
             print(f"Cannot restore previous Wi-Fi: {result.stderr.strip()}")
+            print_nmcli_auth_hint_if_needed(result)
     finally:
         try:
             os.remove(WIFI_STATE_FILE)
