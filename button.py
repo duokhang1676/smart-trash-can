@@ -1,7 +1,6 @@
 import Jetson.GPIO as GPIO
 import time
-import subprocess
-import signal
+import os
 
 BUTTON_PIN = 12
 BUZZER_PIN = 19
@@ -9,14 +8,12 @@ BUZZER_PIN = 19
 DOUBLE_CLICK_TIME = 0.5
 LONG_PRESS_TIME = 2
 
+CONTAINER_NAME = "iot-2708"
+PROJECT_PATH = "/ultralytics/workspace/smart-trash-can"
+
 GPIO.setmode(GPIO.BOARD)
 
-GPIO.setup(
-    BUTTON_PIN,
-    GPIO.IN,
-    pull_up_down=GPIO.PUD_UP
-)
-
+GPIO.setup(BUTTON_PIN, GPIO.IN)
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
 last_state = GPIO.input(BUTTON_PIN)
@@ -24,8 +21,6 @@ press_time = 0
 release_time = 0
 click_count = 0
 long_press_fired = False
-
-main_process = None
 
 
 def beep(duration):
@@ -35,27 +30,28 @@ def beep(duration):
 
 
 def start_main():
-    global main_process
+    print("Start main.py")
 
-    if main_process is None or main_process.poll() is not None:
-        print("Start main.py")
-        main_process = subprocess.Popen(
-            ["python3", "main.py"]
-        )
-    else:
-        print("main.py is already running")
+    command = (
+        f"docker exec -d {CONTAINER_NAME} "
+        f"bash -c "
+        f"\"export PYTHONPATH=/usr/local/lib/python3.8/site-packages:$PYTHONPATH && "
+        f"cd {PROJECT_PATH} && "
+        f"python3 main.py\""
+    )
+
+    os.system(command)
 
 
 def stop_main():
-    global main_process
+    print("Stop main.py")
 
-    if main_process is not None and main_process.poll() is None:
-        print("Stop main.py")
-        main_process.send_signal(signal.SIGINT)
-        main_process.wait()
-        main_process = None
-    else:
-        print("main.py is not running")
+    command = (
+        f"docker exec {CONTAINER_NAME} "
+        f"pkill -2 -f 'python3 main.py'"
+    )
+
+    os.system(command)
 
 
 try:
