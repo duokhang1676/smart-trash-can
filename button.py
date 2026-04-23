@@ -58,31 +58,44 @@ def start_main():
 
     print("Start main.py")
     try:
+        cmd = [
+            "docker",
+            "exec",
+            "-d",
+            "-w",
+            CONTAINER_WORKDIR,
+            CONTAINER_NAME,
+            "bash",
+            "-c",
+            "python3 -u main.py",
+        ]
+        print(f"Running command: {' '.join(cmd)}")
         result = subprocess.run(
-            [
-                "docker",
-                "exec",
-                "-d",
-                "-w",
-                CONTAINER_WORKDIR,
-                CONTAINER_NAME,
-                "bash",
-                "-c",
-                "python3 -u main.py",
-            ],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
             check=False,
         )
+        print(f"Return code: {result.returncode}")
+        if result.stdout:
+            print(f"Stdout: {result.stdout}")
+        if result.stderr:
+            print(f"Stderr: {result.stderr}")
+        
         if result.returncode != 0:
             print(f"Error starting main.py: {result.stderr}")
         else:
-            time.sleep(1)  # Wait for process to start
+            time.sleep(2)  # Wait longer for process to start
             if is_main_running():
                 print("main.py started successfully")
             else:
                 print("Warning: main.py may have crashed immediately")
+                # Check docker logs for clues
+                logs_cmd = ["docker", "logs", "--tail", "20", CONTAINER_NAME]
+                logs_result = subprocess.run(logs_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=False)
+                if logs_result.stdout:
+                    print(f"Last container logs:\n{logs_result.stdout}")
     except Exception as e:
         print(f"Exception in start_main: {e}")
 
