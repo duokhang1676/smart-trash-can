@@ -65,8 +65,8 @@ def start_main():
             "-w",
             CONTAINER_WORKDIR,
             CONTAINER_NAME,
-            "bash",
-            "-c",
+            "sh",
+            "-lc",
             "python3 -u main.py",
         ]
         print(f"Running command: {' '.join(cmd)}")
