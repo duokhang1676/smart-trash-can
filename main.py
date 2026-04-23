@@ -7,6 +7,7 @@ import os
 import base64
 import queue
 import threading
+import re
 from ultralytics import YOLO
 import detection_status
 import web_server
@@ -89,7 +90,7 @@ def parse_bin_status(response, expected_count=4):
     """Parse comma-separated bin status values safely.
 
     Accepts integers or float-like tokens (e.g. 1, 0, 1.0),
-    then normalizes each value to 0/1.
+    and stores each value as a percentage in range 0..100.
     Returns None when payload is not a valid bin-status message.
     """
     tokens = [token.strip() for token in response.split(",") if token.strip()]
@@ -109,6 +110,50 @@ def parse_bin_status(response, expected_count=4):
         parsed.append(max(0.0, min(100.0, value)))
 
     return parsed
+
+
+def extract_bin_status_messages(serial_buffer, expected_count=4):
+    """Extract complete bin-status payloads from a serial text buffer.
+
+    Supports both forms:
+    - "10,20,30,40\n"
+    - "10,20,30,40," (without newline)
+    """
+    number = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
+    pattern = re.compile(
+        rf"^\s*({number}(?:\s*,\s*{number}){{{expected_count - 1}}})\s*,?\s*(?:\r?\n)?"
+    )
+
+    messages = []
+    buffer = serial_buffer
+
+    while buffer:
+        # Trim start noise before attempting to parse.
+        buffer = buffer.lstrip("\r\n\t ")
+        if not buffer:
+            break
+
+        match = pattern.match(buffer)
+        if match:
+            messages.append(match.group(1))
+            buffer = buffer[match.end():]
+            continue
+
+        # If we have a newline but still no match, drop one bad line and retry.
+        newline_index = buffer.find("\n")
+        if newline_index != -1:
+            malformed = buffer[: newline_index + 1].strip()
+            if malformed:
+                logger.warning("Ignored malformed serial payload: %s", malformed)
+            buffer = buffer[newline_index + 1 :]
+            continue
+
+        # Keep only tail to avoid unbounded growth when data is fragmented.
+        if len(buffer) > 512:
+            buffer = buffer[-256:]
+        break
+
+    return messages, buffer
 
 
 def should_send_group(valid_group, detection_state):
@@ -320,20 +365,24 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
 def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     frame_count = 0
     last_frame_id = 0
+    serial_buffer = ""
     loop_started = time.perf_counter()
     logger.info("main_loop started")
     while True:
         frame_count += 1
 
         serial_t0 = time.perf_counter()
-        response = ""
         if ser.in_waiting > 0:
-            response = ser.readline().decode(errors="ignore").strip()
+            chunk = ser.read(ser.in_waiting).decode(errors="ignore")
+            serial_buffer += chunk
         serial_wait_ms = (time.perf_counter() - serial_t0) * 1000.0
         if serial_wait_ms > 700:
             logger.warning("Serial read wait: %.1f ms", serial_wait_ms)
 
-        if response:
+        responses, serial_buffer = extract_bin_status_messages(
+            serial_buffer, expected_count=len(full_status)
+        )
+        for response in responses:
             parsed_status = parse_bin_status(response, expected_count=len(full_status))
             if parsed_status is None:
                 logger.warning("Ignored non-bin serial payload: %s", response)
@@ -409,6 +458,12 @@ def main():
 
     time.sleep(2)  # Wait for serial connection to initialize.
     log_stage(start_time, "Serial init wait done")
+
+    # Send warm-up command once after initial connection.
+    ser.reset_input_buffer()
+    ser.write(b"0")
+    ser.flush()
+    log_stage(start_time, "Sent warm-up command: '0'")
 
     log_stage(start_time, "Preparing dataset directories")
     images_dir, labels_dir = create_dataset_files(model)

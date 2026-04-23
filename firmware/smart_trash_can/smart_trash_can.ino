@@ -23,11 +23,8 @@ const int verticalTargets[BIN_COUNT] = {
   vertical_1, vertical_1, vertical_2, vertical_2
 };
 
-int full[BIN_COUNT] = {0, 0, 0, 0};
-int pre_full[BIN_COUNT] = {0, 0, 0, 0};
-
 unsigned long tsrf = 0;
-const unsigned long interval_tsrf = 2000;
+const unsigned long interval_tsrf = 5000;
 
 float readDistance(int trigPin, int echoPin) {
   digitalWrite(trigPin, LOW);
@@ -44,99 +41,100 @@ float readDistance(int trigPin, int echoPin) {
   return distance;
 }
 
+void warm_up(){
+  digitalWrite(whistlePin, HIGH);
+  servo1.write(horizontal_2);
+  delay(1000);
+  servo1.write(horizontal_0);
+  digitalWrite(whistlePin, LOW);
+}
+
 void throwToBin(uint8_t binIndex) {
   if (binIndex >= BIN_COUNT) {
     return;
   }
-  digitalWrite(ledPins[binIndex], HIGH);
   servo1.write(horizontalTargets[binIndex]);
   delay(500);
   servo2.write(verticalTargets[binIndex]);
   delay(1000);
 
-  // if(verticalTargets[binIndex] < vertical_0){
-  //   for(int i = verticalTargets[binIndex]; i<= vertical_0; i++){
-  //     servo2.write(i);
-  //     delay(3);
-  //   }
-  // }else{
-  //   for(int i = verticalTargets[binIndex]; i>= vertical_0; i--){
-  //     servo2.write(i);
-  //     delay(3);
-  //   } 
-  // }
+  int target = vertical_0;
+  int pos = verticalTargets[binIndex];
 
-int target = vertical_0;
-int pos = verticalTargets[binIndex];
+  while (true) {
+    int diff = abs(target - pos);
 
-while (true) {
-  int diff = abs(target - pos);
+    // Deadband: nếu gần đủ thì dừng luôn
+    if (diff <= 1) break;
 
-  // 🔹 Deadband: nếu gần đủ thì dừng luôn
-  if (diff <= 1) break;
+    // Giảm tốc khi gần target
+    int step;
+    if (diff > 20) step = 3;       // xa → nhanh
+    else if (diff > 5) step = 2;   // trung bình
+    else step = 1;                 // gần → chậm
 
-  // 🔹 Giảm tốc khi gần target
-  int step;
-  if (diff > 20) step = 3;       // xa → nhanh
-  else if (diff > 5) step = 2;   // trung bình
-  else step = 1;                 // gần → chậm
+    // Cập nhật vị trí
+    if (pos < target) pos += step;
+    else pos -= step;
 
-  // 🔹 Cập nhật vị trí
-  if (pos < target) pos += step;
-  else pos -= step;
-
-  servo2.write(pos);
-  delay(15); // đừng để quá nhỏ (tránh rung)
+    servo2.write(pos);
+    delay(15); // đừng để quá nhỏ (tránh rung)
 }
 
   delay(500);
-  digitalWrite(ledPins[binIndex], LOW);
 }
 
-bool updateFullStatusAndLed() {
-  bool changed = false;
+int capacity[BIN_COUNT] = {0, 0, 0, 0};
+int full[BIN_COUNT] = {0,0,0,0};
 
+void getCapacity(int capacity[], int full[]) {
   for (uint8_t i = 0; i < BIN_COUNT; i++) {
     float d = readDistance(trigPins[i], echoPins[i]);
     if (d < 10) {
-      // throwToBin(i);
-      digitalWrite(ledPins[i], HIGH);
+      capacity[i] = 0;
       full[i] = 1;
+      digitalWrite(ledPins[i], HIGH);
     } else {
-      digitalWrite(ledPins[i], LOW);
+      capacity[i] = (int)(((d-10)/35) * 100);
+      if (capacity[i]>100){
+        capacity[i]=100;
+      }
+      capacity[i] = 100 - capacity[i];
       full[i] = 0;
+      digitalWrite(ledPins[i], LOW);
     }
-
-    if (full[i] != pre_full[i]) {
-      changed = true;
-    }
-
     delay(50);
   }
-  return changed;
 }
 
-void sendFullStatusIfChanged() {
+void sendCapacity(int capacity[]) {
   String send = "";
   for (uint8_t i = 0; i < BIN_COUNT; i++) {
-    send += String(full[i]) + ",";
+    send += String(capacity[i]);
+    if (i < BIN_COUNT - 1) {
+      send += ",";
+    }
   }
-
-  Serial.print(send);
-
-  for (uint8_t i = 0; i < BIN_COUNT; i++) {
-    pre_full[i] = full[i];
-  }
+  Serial.println(send);
 }
 
 void handleSerialCommand() {
   while (Serial.available() > 0) {
     char cmd = (char)Serial.read();
-
-    if (cmd >= '1' && cmd <= '4') {
+    if (cmd == '0'){
+      warm_up();
+      getCapacity(capacity, full);
+      sendCapacity(capacity);
+    }else if (cmd >= '1' && cmd <= '4') {
       uint8_t binIndex = (uint8_t)(cmd - '1');
+      getCapacity(capacity, full);
       if (full[binIndex] == 0) {
         throwToBin(binIndex);
+        sendCapacity(capacity);
+      }else{
+        digitalWrite(whistlePin, HIGH);
+        delay(500);
+        digitalWrite(whistlePin, LOW);
       }
     }
   }
@@ -163,20 +161,14 @@ void setup() {
 }
 
 void loop() {
-  // Check full status by ultrasonic sensors on interval.
   unsigned long now = millis();
 
   if (now - tsrf >= interval_tsrf) {
     tsrf = now;
-
-    bool changed = updateFullStatusAndLed();
-    if (changed) {
-      sendFullStatusIfChanged();
-    }
+    getCapacity(capacity, full);
+    sendCapacity(capacity);
   }
-
   // Throw trash when receiving a command from serial.
   handleSerialCommand();
-
   delay(200);
 }
