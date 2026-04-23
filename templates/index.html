@@ -144,7 +144,7 @@
             border: 1px solid var(--stroke);
             border-radius: 14px;
             padding: 8px;
-            display: none;
+            display: none !important;
             margin: 0 auto;
             box-shadow: 0 10px 24px rgba(19, 88, 94, 0.12);
         }
@@ -322,19 +322,26 @@
             padding: 8px;
             width: 100%;
             min-height: 222px;
-            text-align: center;
+            text-align: left;
             display: grid;
             align-content: start;
             gap: 5px;
         }
 
+        .bin-head {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+
         .bin-photo {
-            width: 100%;
-            height: 116px;
+            width: 88px;
+            height: 88px;
             object-fit: contain;
             border-radius: 8px;
             border: 1px solid var(--stroke);
-            margin-bottom: 2px;
+            margin: 0;
             background: #ffffff;
         }
 
@@ -342,12 +349,14 @@
             font-size: 0.8rem;
             font-weight: 700;
             font-family: "Space Grotesk", sans-serif;
+            text-align: left;
         }
 
         .quad-count {
             font-size: 1.3rem;
             font-weight: 700;
             line-height: 1;
+            text-align: right;
         }
 
         .quad-types {
@@ -591,6 +600,7 @@
 
             .bin-photo {
                 height: 84px;
+                width: 84px;
             }
 
             .settings-modal {
@@ -624,7 +634,6 @@
     <section id="settings-overlay" class="settings-overlay" aria-hidden="true">
         <div class="settings-modal">
             <div class="settings-head">
-                <h2>Settings</h2>
             </div>
 
             <div class="shell">
@@ -632,9 +641,11 @@
                     <div class="circle-wrap bins-grid">
                         <div class="quadrant q1" data-bin="1">
                             <div class="quad-content">
-                                <img class="bin-photo" src="/public/1.png" alt="Bin 1 image">
-                                <div class="quad-title">Tái chế</div>
-                                <div class="quad-count" id="count-group-1">0</div>
+                                <div class="bin-head">
+                                    <div class="quad-title">Tái chế</div>
+                                    <img class="bin-photo" src="/public/1.png" alt="Bin 1 image">
+                                    <div class="quad-count" id="count-group-1">0</div>
+                                </div>
                                 <div class="capacity-row">
                                     <span>Capacity</span>
                                     <span id="capacity-text-1">0%</span>
@@ -644,9 +655,11 @@
                         </div>
                         <div class="quadrant q2" data-bin="2">
                             <div class="quad-content">
-                                <img class="bin-photo" src="/public/2.png" alt="Bin 2 image">
-                                <div class="quad-title">Hữu cơ</div>
-                                <div class="quad-count" id="count-group-2">0</div>
+                                <div class="bin-head">
+                                    <div class="quad-title">Hữu cơ</div>
+                                    <img class="bin-photo" src="/public/2.png" alt="Bin 2 image">
+                                    <div class="quad-count" id="count-group-2">0</div>
+                                </div>
                                 <div class="capacity-row">
                                     <span>Capacity</span>
                                     <span id="capacity-text-2">0%</span>
@@ -656,9 +669,11 @@
                         </div>
                         <div class="quadrant q3" data-bin="3">
                             <div class="quad-content">
-                                <img class="bin-photo" src="/public/3.png" alt="Bin 3 image">
-                                <div class="quad-title">Vô cơ</div>
-                                <div class="quad-count" id="count-group-3">0</div>
+                                <div class="bin-head">
+                                    <div class="quad-title">Vô cơ</div>
+                                    <img class="bin-photo" src="/public/3.png" alt="Bin 3 image">
+                                    <div class="quad-count" id="count-group-3">0</div>
+                                </div>
                                 <div class="capacity-row">
                                     <span>Capacity</span>
                                     <span id="capacity-text-3">0%</span>
@@ -668,9 +683,11 @@
                         </div>
                         <div class="quadrant q4" data-bin="4">
                             <div class="quad-content">
-                                <img class="bin-photo" src="/public/4.png" alt="Bin 4 image">
-                                <div class="quad-title">Nguy hại</div>
-                                <div class="quad-count" id="count-group-4">0</div>
+                                <div class="bin-head">
+                                    <div class="quad-title">Nguy hại</div>
+                                    <img class="bin-photo" src="/public/4.png" alt="Bin 4 image">
+                                    <div class="quad-count" id="count-group-4">0</div>
+                                </div>
                                 <div class="capacity-row">
                                     <span>Capacity</span>
                                     <span id="capacity-text-4">0%</span>
