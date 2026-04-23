@@ -24,6 +24,9 @@ MIN_SEND_INTERVAL_SEC = 0.8
 REARM_SAME_GROUP_SEC = 2.0
 FULL_THRESHOLD_PERCENT = 95.0
 ENABLE_DATASET_SAVE = False
+CAMERA_FRAME_WAIT_TIMEOUT_SEC = 0.12
+CAMERA_WARN_THROTTLE_SEC = 2.0
+CAMERA_MISS_WARN_STREAK = 3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -369,6 +372,10 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
 def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     frame_count = 0
     last_frame_id = 0
+    last_good_frame = None
+    frame_miss_streak = 0
+    last_read_warn_time = 0.0
+    last_miss_warn_time = 0.0
     serial_buffer = ""
     loop_started = time.perf_counter()
     logger.info("main_loop started")
@@ -396,16 +403,31 @@ def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, dete
                 print(f"Received bin status: {full_status}")
 
         read_t0 = time.perf_counter()
-        frame_id, frame = frame_buffer.get_latest(last_frame_id, timeout=0.3)
+        frame_id, frame = frame_buffer.get_latest(last_frame_id, timeout=CAMERA_FRAME_WAIT_TIMEOUT_SEC)
         read_ms = (time.perf_counter() - read_t0) * 1000.0
-        if read_ms > 200:
-            logger.warning("Camera read slow: %.1f ms", read_ms)
+        now = time.time()
 
         if frame is None:
-            logger.warning("No new frame available at count=%d", frame_count)
-            continue
+            frame_miss_streak += 1
+            if read_ms > 200 and (now - last_read_warn_time) >= CAMERA_WARN_THROTTLE_SEC:
+                logger.warning("Camera read slow: %.1f ms", read_ms)
+                last_read_warn_time = now
 
-        last_frame_id = frame_id
+            if frame_miss_streak >= CAMERA_MISS_WARN_STREAK and (now - last_miss_warn_time) >= CAMERA_WARN_THROTTLE_SEC:
+                logger.warning(
+                    "No new frame streak=%d at count=%d; reusing last frame",
+                    frame_miss_streak,
+                    frame_count,
+                )
+                last_miss_warn_time = now
+
+            if last_good_frame is None:
+                continue
+            frame = last_good_frame.copy()
+        else:
+            frame_miss_streak = 0
+            last_frame_id = frame_id
+            last_good_frame = frame
         
         # frame_count += 1
         # if frame_count % 5 != 0:
@@ -423,81 +445,85 @@ def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, dete
 def main():
     start_time = time.perf_counter()
     log_stage(start_time, "Program start")
-
-    log_stage(start_time, f"Loading model: {MODEL_PATH}")
-    model = YOLO(MODEL_PATH, task="detect")
-    log_stage(start_time, "Model loaded")
-
-    log_stage(start_time, "Opening camera")
-    cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_GSTREAMER)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    log_stage(start_time, "Camera open request sent")
-
-    if not cap.isOpened():
-        logger.error("Can't open camera")
-        return
-    log_stage(start_time, "Camera is opened")
-
-    # Warm-up camera
-    log_stage(start_time, "Camera warm-up started")
-    for _ in range(10):
-        cap.read()
-    log_stage(start_time, "Camera warm-up finished")
-
-    log_stage(start_time, "Starting latest-frame buffer")
-    frame_buffer = LatestFrameBuffer(cap)
-    frame_buffer.start()
-    log_stage(start_time, "Latest-frame buffer started")
-
-    # Warm-up model
-    log_stage(start_time, "Model warm-up started")
-    dummy = np.zeros((320, 320, 3), dtype=np.uint8)
-    for _ in range(5):
-        model(dummy, verbose=False)
-    log_stage(start_time, "Model warm-up finished")
-
-    log_stage(start_time, f"Opening serial: {SERIAL_PORT} @ {BAUDRATE}")
-    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0)
-    log_stage(start_time, "Serial opened")
-
-    time.sleep(2)  # Wait for serial connection to initialize.
-    log_stage(start_time, "Serial init wait done")
-
-    # Send warm-up command once after initial connection.
-    ser.reset_input_buffer()
-    ser.write(b"0")
-    ser.flush()
-    log_stage(start_time, "Sent warm-up command: '0'")
-
-    log_stage(start_time, "Preparing dataset directories")
-    images_dir = None
-    labels_dir = None
-    if ENABLE_DATASET_SAVE:
-        images_dir, labels_dir = create_dataset_files(model)
-        log_stage(start_time, f"Dataset ready: images={images_dir}, labels={labels_dir}")
-    else:
-        log_stage(start_time, "Dataset save disabled")
-
-    log_stage(start_time, "Starting save worker thread")
+    model = None
+    cap = None
+    frame_buffer = None
+    ser = None
     save_queue = None
     save_thread = None
-    if ENABLE_DATASET_SAVE:
-        save_queue = queue.Queue()
-        save_thread = threading.Thread(target=save_worker, args=(save_queue,), daemon=True)
-        save_thread.start()
-        log_stage(start_time, "Save worker thread started")
-    else:
-        log_stage(start_time, "Save worker thread skipped")
-
-    # Start web server in separate thread
-    log_stage(start_time, "Starting web server thread")
-    web_thread = threading.Thread(target=web_server.start_web_server, args=(5000,), daemon=True)
-    time.sleep(2)  # Give web server a moment to start before main loop begins.
-    web_thread.start()
-    logger.info("Web server started at http://localhost:5000")
-    log_stage(start_time, "Web server thread started")
+    images_dir = None
+    labels_dir = None
 
     try:
+        log_stage(start_time, f"Loading model: {MODEL_PATH}")
+        model = YOLO(MODEL_PATH, task="detect")
+        log_stage(start_time, "Model loaded")
+
+        log_stage(start_time, "Opening camera")
+        cap = cv2.VideoCapture(CAMERA_PATH, cv2.CAP_GSTREAMER)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        log_stage(start_time, "Camera open request sent")
+
+        if not cap.isOpened():
+            logger.error("Can't open camera")
+            return
+        log_stage(start_time, "Camera is opened")
+
+        # Warm-up camera
+        log_stage(start_time, "Camera warm-up started")
+        for _ in range(10):
+            cap.read()
+        log_stage(start_time, "Camera warm-up finished")
+
+        log_stage(start_time, "Starting latest-frame buffer")
+        frame_buffer = LatestFrameBuffer(cap)
+        frame_buffer.start()
+        log_stage(start_time, "Latest-frame buffer started")
+
+        # Warm-up model
+        log_stage(start_time, "Model warm-up started")
+        dummy = np.zeros((320, 320, 3), dtype=np.uint8)
+        for _ in range(5):
+            model(dummy, verbose=False)
+        log_stage(start_time, "Model warm-up finished")
+
+        log_stage(start_time, f"Opening serial: {SERIAL_PORT} @ {BAUDRATE}")
+        ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0)
+        log_stage(start_time, "Serial opened")
+
+        time.sleep(2)  # Wait for serial connection to initialize.
+        log_stage(start_time, "Serial init wait done")
+
+        # Send warm-up command once after initial connection.
+        ser.reset_input_buffer()
+        ser.write(b"0")
+        ser.flush()
+        log_stage(start_time, "Sent warm-up command: '0'")
+
+        log_stage(start_time, "Preparing dataset directories")
+        if ENABLE_DATASET_SAVE:
+            images_dir, labels_dir = create_dataset_files(model)
+            log_stage(start_time, f"Dataset ready: images={images_dir}, labels={labels_dir}")
+        else:
+            log_stage(start_time, "Dataset save disabled")
+
+        log_stage(start_time, "Starting save worker thread")
+        if ENABLE_DATASET_SAVE:
+            save_queue = queue.Queue()
+            save_thread = threading.Thread(target=save_worker, args=(save_queue,), daemon=True)
+            save_thread.start()
+            log_stage(start_time, "Save worker thread started")
+        else:
+            log_stage(start_time, "Save worker thread skipped")
+
+        # Start web server in separate thread
+        log_stage(start_time, "Starting web server thread")
+        web_thread = threading.Thread(target=web_server.start_web_server, args=(5000,), daemon=True)
+        time.sleep(2)  # Give web server a moment to start before main loop begins.
+        web_thread.start()
+        logger.info("Web server started at http://localhost:5000")
+        log_stage(start_time, "Web server thread started")
+
         time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
         log_stage(start_time, "Pre-loop delay done")
         full_status = [0.0] * 4
@@ -517,18 +543,24 @@ def main():
         log_stage(start_time, "Entering main_loop")
         main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
         log_stage(start_time, "main_loop returned")
+
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received (Ctrl+C). Stopping gracefully...")
     except Exception:
         logger.exception("Unhandled exception in main")
         raise
     finally:
         log_stage(start_time, "Cleanup started")
-        frame_buffer.stop()
-        ser.close()
+        if frame_buffer is not None:
+            frame_buffer.stop()
+        if ser is not None and ser.is_open:
+            ser.close()
         if ENABLE_DATASET_SAVE and save_queue is not None and save_thread is not None:
             save_queue.put(None)
             save_queue.join()
-            save_thread.join()
-        cap.release()
+            save_thread.join(timeout=2)
+        if cap is not None:
+            cap.release()
         cv2.destroyAllWindows()
         log_stage(start_time, "Cleanup finished")
 
