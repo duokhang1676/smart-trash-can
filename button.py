@@ -65,7 +65,7 @@ def start_main():
             "-w",
             CONTAINER_WORKDIR,
             CONTAINER_NAME,
-            "sh",
+            "bash",
             "-lc",
             "python3 -u main.py",
         ]
