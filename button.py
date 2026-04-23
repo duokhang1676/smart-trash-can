@@ -30,6 +30,18 @@ def beep(duration):
 
 
 def start_main():
+    check_command = (
+        f"docker exec {CONTAINER_NAME} "
+        f"pgrep -f 'python3 main.py'"
+    )
+
+    result = os.system(check_command)
+
+    if result == 0:
+        print("main.py is already running")
+        beep(0.2)
+        return
+
     print("Start main.py")
 
     command = (
@@ -56,7 +68,11 @@ def stop_main():
 
 try:
     print("Listening...")
-
+    beep(0.1)
+    time.sleep(0.1)
+    beep(0.1)
+    time.sleep(0.1)
+    beep(0.1)
     while True:
         current_state = GPIO.input(BUTTON_PIN)
 
@@ -71,8 +87,15 @@ try:
         ):
             print("Long press")
             beep(0.5)
+
+            stop_main()
+
+            print("Shutdown Jetson...")
+            os.system("sudo shutdown -h now")
+
             click_count = 0
             long_press_fired = True
+            release_time = 0
 
         elif last_state == 0 and current_state == 1:
             if not long_press_fired:
