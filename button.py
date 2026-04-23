@@ -1,6 +1,7 @@
 import Jetson.GPIO as GPIO
 import time
 import os
+import subprocess
 
 BUTTON_PIN = 12
 BUZZER_PIN = 19
@@ -10,6 +11,10 @@ LONG_PRESS_TIME = 2
 
 CONTAINER_NAME = "iot-2708"
 PROJECT_PATH = "/ultralytics/workspace/smart-trash-can"
+HOTSPOT_SSID = "EcoSort"
+HOTSPOT_PASSWORD = "ecosort25"
+HOTSPOT_CONN_NAME = "EcoSortHotspot"
+WIFI_STATE_FILE = "/tmp/ecosort_prev_wifi.txt"
 
 GPIO.setmode(GPIO.BOARD)
 
@@ -29,6 +34,122 @@ def beep(duration):
     GPIO.output(BUZZER_PIN, GPIO.LOW)
 
 
+def run_cmd(command):
+    return subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        check=False,
+    )
+
+
+def get_wifi_interface():
+    result = run_cmd(["nmcli", "-t", "-f", "DEVICE,TYPE", "device", "status"])
+    if result.returncode != 0:
+        return None
+
+    for line in result.stdout.splitlines():
+        parts = line.strip().split(":")
+        if len(parts) >= 2 and parts[1] == "wifi":
+            return parts[0]
+    return None
+
+
+def save_current_wifi_profile():
+    result = run_cmd(["nmcli", "-t", "-f", "NAME,UUID,TYPE", "connection", "show", "--active"])
+    if result.returncode != 0:
+        return
+
+    for line in result.stdout.splitlines():
+        parts = line.strip().split(":")
+        if len(parts) >= 3 and parts[2] == "802-11-wireless":
+            with open(WIFI_STATE_FILE, "w") as f:
+                f.write(parts[1] + "\n")
+                f.write(parts[0] + "\n")
+            return
+
+
+def switch_to_hotspot():
+    interface = get_wifi_interface()
+    if not interface:
+        print("No Wi-Fi interface found")
+        return False
+
+    save_current_wifi_profile()
+
+    # Reuse hotspot profile if it already exists; otherwise create it.
+    has_hotspot = run_cmd(["nmcli", "-t", "-f", "NAME", "connection", "show"])
+    if has_hotspot.returncode == 0 and HOTSPOT_CONN_NAME in has_hotspot.stdout:
+        up_result = run_cmd(["nmcli", "connection", "up", HOTSPOT_CONN_NAME, "ifname", interface])
+        if up_result.returncode != 0:
+            print(f"Cannot enable hotspot profile: {up_result.stderr.strip()}")
+            return False
+    else:
+        create_result = run_cmd(
+            [
+                "nmcli",
+                "device",
+                "wifi",
+                "hotspot",
+                "ifname",
+                interface,
+                "con-name",
+                HOTSPOT_CONN_NAME,
+                "ssid",
+                HOTSPOT_SSID,
+                "password",
+                HOTSPOT_PASSWORD,
+            ]
+        )
+        if create_result.returncode != 0:
+            print(f"Cannot create hotspot: {create_result.stderr.strip()}")
+            return False
+
+    print(f"Hotspot enabled: {HOTSPOT_SSID} (password: {HOTSPOT_PASSWORD})")
+    return True
+
+
+def restore_previous_wifi_profile():
+    interface = get_wifi_interface()
+
+    run_cmd(["nmcli", "connection", "down", HOTSPOT_CONN_NAME])
+
+    if not os.path.exists(WIFI_STATE_FILE):
+        print("No previous Wi-Fi profile to restore")
+        return
+
+    try:
+        with open(WIFI_STATE_FILE, "r") as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+        if len(lines) < 2:
+            print("Wi-Fi restore file is invalid")
+            return
+
+        prev_uuid, prev_name = lines[0], lines[1]
+
+        up_by_uuid = ["nmcli", "connection", "up", "uuid", prev_uuid]
+        if interface:
+            up_by_uuid.extend(["ifname", interface])
+
+        result = run_cmd(up_by_uuid)
+        if result.returncode != 0:
+            up_by_name = ["nmcli", "connection", "up", prev_name]
+            if interface:
+                up_by_name.extend(["ifname", interface])
+            result = run_cmd(up_by_name)
+
+        if result.returncode == 0:
+            print(f"Restored Wi-Fi: {prev_name}")
+        else:
+            print(f"Cannot restore previous Wi-Fi: {result.stderr.strip()}")
+    finally:
+        try:
+            os.remove(WIFI_STATE_FILE)
+        except OSError:
+            pass
+
+
 def start_main():
     check_command = (
         f"docker exec {CONTAINER_NAME} "
@@ -42,6 +163,11 @@ def start_main():
         beep(0.2)
         return
 
+    if not switch_to_hotspot():
+        print("Failed to switch to hotspot. main.py will not start.")
+        beep(0.3)
+        return
+
     print("Start main.py")
 
     command = (
@@ -52,7 +178,10 @@ def start_main():
         f"python3 main.py > main.log 2>&1\""
     )
 
-    os.system(command)
+    start_result = os.system(command)
+    if start_result != 0:
+        print("Failed to start main.py, restoring previous Wi-Fi")
+        restore_previous_wifi_profile()
 
 
 def stop_main():
@@ -64,6 +193,7 @@ def stop_main():
     )
 
     os.system(command)
+    restore_previous_wifi_profile()
 
 
 try:
