@@ -57,17 +57,34 @@ def start_main():
         return
 
     print("Start main.py")
-    run_command([
-        "docker",
-        "exec",
-        "-d",
-        "-w",
-        CONTAINER_WORKDIR,
-        CONTAINER_NAME,
-        "python3",
-        "-u",
-        MAIN_SCRIPT,
-    ])
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "-d",
+                "-w",
+                CONTAINER_WORKDIR,
+                CONTAINER_NAME,
+                "python3",
+                "-u",
+                "main.py",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"Error starting main.py: {result.stderr}")
+        else:
+            time.sleep(1)  # Wait for process to start
+            if is_main_running():
+                print("main.py started successfully")
+            else:
+                print("Warning: main.py may have crashed immediately")
+    except Exception as e:
+        print(f"Exception in start_main: {e}")
 
 
 def stop_main():
@@ -77,8 +94,8 @@ def stop_main():
         "exec",
         CONTAINER_NAME,
         "sh",
-        "-lc",
-        "pkill -2 -f 'python3 -u main.py' || pkill -2 -f 'python3 main.py'",
+        "-c",
+        "pkill -2 -f 'python3 -u main.py' || true",
     ])
 
 
