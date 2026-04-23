@@ -880,44 +880,54 @@
         }
 
         function renderCounts(counts) {
-            document.getElementById("count-group-1").textContent = counts.group_1 ?? 0;
-            document.getElementById("count-group-2").textContent = counts.group_2 ?? 0;
-            document.getElementById("count-group-3").textContent = counts.group_3 ?? 0;
-            document.getElementById("count-group-4").textContent = counts.group_4 ?? 0;
-            document.getElementById("count-total").textContent = counts.total ?? 0;
+            const countGroup1 = document.getElementById("count-group-1");
+            const countGroup2 = document.getElementById("count-group-2");
+            const countGroup3 = document.getElementById("count-group-3");
+            const countGroup4 = document.getElementById("count-group-4");
+            const countTotal = document.getElementById("count-total");
+
+            if (countGroup1) countGroup1.textContent = counts.group_1 ?? 0;
+            if (countGroup2) countGroup2.textContent = counts.group_2 ?? 0;
+            if (countGroup3) countGroup3.textContent = counts.group_3 ?? 0;
+            if (countGroup4) countGroup4.textContent = counts.group_4 ?? 0;
+            if (countTotal) countTotal.textContent = counts.total ?? 0;
         }
 
         function applyStatus(data) {
-            const labels = Array.isArray(data.detected_labels) ? data.detected_labels : [];
-            const hasDetectionVisual = Boolean(data.frame_thumbnail) || labels.length > 0;
-            if (hasDetectionVisual) {
-                renderMainLabel(labels);
-                setDetectedBinPreview(data.detected_groups);
+            try {
+                const labels = Array.isArray(data.detected_labels) ? data.detected_labels : [];
+                const hasDetectionVisual = Boolean(data.frame_thumbnail) || labels.length > 0;
+                if (hasDetectionVisual) {
+                    renderMainLabel(labels);
+                    setDetectedBinPreview(data.detected_groups);
 
-                const mainLabel = labels[0] || "none";
-                const thumbUrl = data.frame_thumbnail || makeThumbDataUrl(mainLabel);
-                document.getElementById("current-frame").src = thumbUrl;
-            }
-
-            renderCounts(data.counts || {});
-
-            if (data.full_status && Array.isArray(data.full_status)) {
-                for (let i = 1; i <= 4; i++) {
-                    setBinFullStatus(i, data.full_status[i - 1]);
+                    const mainLabel = labels[0] || "none";
+                    const thumbUrl = data.frame_thumbnail || makeThumbDataUrl(mainLabel);
+                    document.getElementById("current-frame").src = thumbUrl;
                 }
-            }
 
-            const detectionSequence = Number.isFinite(Number(data.detection_sequence))
-                ? Number(data.detection_sequence)
-                : null;
-            const hasNewDetection = detectionSequence !== null && detectionSequence > lastDetectionSequence;
+                renderCounts(data.counts || {});
 
-            if (hasNewDetection) {
-                lastDetectionSequence = detectionSequence;
-            }
+                if (data.full_status && Array.isArray(data.full_status)) {
+                    for (let i = 1; i <= 4; i++) {
+                        setBinFullStatus(i, data.full_status[i - 1]);
+                    }
+                }
 
-            if (hasNewDetection && labels.length && data.frame_thumbnail) {
-                labels.forEach((label) => pushRecent(label, data.frame_thumbnail));
+                const detectionSequence = Number.isFinite(Number(data.detection_sequence))
+                    ? Number(data.detection_sequence)
+                    : null;
+                const hasNewDetection = detectionSequence !== null && detectionSequence > lastDetectionSequence;
+
+                if (hasNewDetection) {
+                    lastDetectionSequence = detectionSequence;
+                }
+
+                if (hasNewDetection && labels.length && data.frame_thumbnail) {
+                    labels.forEach((label) => pushRecent(label, data.frame_thumbnail));
+                }
+            } catch (err) {
+                console.error("applyStatus failed:", err, data);
             }
         }
 

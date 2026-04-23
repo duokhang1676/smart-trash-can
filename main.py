@@ -23,12 +23,14 @@ RESET_MISSED_FRAMES = 2
 MIN_SEND_INTERVAL_SEC = 0.8
 REARM_SAME_GROUP_SEC = 2.0
 FULL_THRESHOLD_PERCENT = 95.0
+ENABLE_DATASET_SAVE = False
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
 logger = logging.getLogger("smart-trash-can")
+logging.getLogger("ultralytics").setLevel(logging.ERROR)
 
 
 def log_stage(start_time, message):
@@ -287,12 +289,13 @@ def get_group_for_label(label):
 def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     detect_started = time.perf_counter()
     # Detect
-    results = model(frame, conf=0.5)
+    results = model(frame, conf=0.5, verbose=False)
     infer_ms = (time.perf_counter() - detect_started) * 1000.0
     if infer_ms > 300:
         logger.warning("Slow inference: %.1f ms", infer_ms)
     if len(results[0].boxes) > 0:
         saved_any = False
+        sent_any = False
         image_h, image_w = frame.shape[:2]
         yolo_lines = []
         detected_groups = set()
@@ -324,6 +327,7 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
         if should_send and valid_group is not None:
             group = valid_group
             detection_status.increment_counts(group)
+            sent_any = True
             if group == 1:
                 ser.write(b'1')
             elif group == 2:
@@ -349,15 +353,15 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
                 detection_state["locked_group"],
             )
 
-        if saved_any:
+        if ENABLE_DATASET_SAVE and saved_any and save_queue is not None and images_dir and labels_dir:
             sample_name = str(int(time.time() * 1000))
             image_path = os.path.join(images_dir, f"{sample_name}.jpg")
             label_path = os.path.join(labels_dir, f"{sample_name}.txt")
             # Save in background to avoid delaying serial/event loop.
             save_queue.put((image_path, label_path, frame.copy(), yolo_lines[:]))
 
-            # Update web UI only for confirmed throws so the browser shows the
-            # same frame content that is written to disk.
+        if sent_any:
+            # Update web UI on each confirmed throw, independent from dataset-save gating.
             frame_thumbnail = create_frame_thumbnail_data_url(frame.copy())
             detection_status.update_detection(detected_labels, detected_groups, frame_thumbnail)
 
@@ -449,7 +453,7 @@ def main():
     log_stage(start_time, "Model warm-up started")
     dummy = np.zeros((320, 320, 3), dtype=np.uint8)
     for _ in range(5):
-        model(dummy)
+        model(dummy, verbose=False)
     log_stage(start_time, "Model warm-up finished")
 
     log_stage(start_time, f"Opening serial: {SERIAL_PORT} @ {BAUDRATE}")
@@ -466,14 +470,24 @@ def main():
     log_stage(start_time, "Sent warm-up command: '0'")
 
     log_stage(start_time, "Preparing dataset directories")
-    images_dir, labels_dir = create_dataset_files(model)
-    log_stage(start_time, f"Dataset ready: images={images_dir}, labels={labels_dir}")
+    images_dir = None
+    labels_dir = None
+    if ENABLE_DATASET_SAVE:
+        images_dir, labels_dir = create_dataset_files(model)
+        log_stage(start_time, f"Dataset ready: images={images_dir}, labels={labels_dir}")
+    else:
+        log_stage(start_time, "Dataset save disabled")
 
     log_stage(start_time, "Starting save worker thread")
-    save_queue = queue.Queue()
-    save_thread = threading.Thread(target=save_worker, args=(save_queue,), daemon=True)
-    save_thread.start()
-    log_stage(start_time, "Save worker thread started")
+    save_queue = None
+    save_thread = None
+    if ENABLE_DATASET_SAVE:
+        save_queue = queue.Queue()
+        save_thread = threading.Thread(target=save_worker, args=(save_queue,), daemon=True)
+        save_thread.start()
+        log_stage(start_time, "Save worker thread started")
+    else:
+        log_stage(start_time, "Save worker thread skipped")
 
     # Start web server in separate thread
     log_stage(start_time, "Starting web server thread")
@@ -510,9 +524,10 @@ def main():
         log_stage(start_time, "Cleanup started")
         frame_buffer.stop()
         ser.close()
-        save_queue.put(None)
-        save_queue.join()
-        save_thread.join()
+        if ENABLE_DATASET_SAVE and save_queue is not None and save_thread is not None:
+            save_queue.put(None)
+            save_queue.join()
+            save_thread.join()
         cap.release()
         cv2.destroyAllWindows()
         log_stage(start_time, "Cleanup finished")
