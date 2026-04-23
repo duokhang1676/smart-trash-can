@@ -59,9 +59,10 @@
         }
 
         .settings-btn {
-            position: absolute;
+            position: fixed;
             top: 8px;
             right: 8px;
+            z-index: 200;
             width: 52px;
             height: 52px;
             border-radius: 50%;
@@ -489,6 +490,98 @@
 
             .circle-wrap {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            body {
+                padding: 10px;
+            }
+
+            .main-view {
+                min-height: calc(100vh - 20px);
+                place-items: stretch;
+            }
+
+            .hero {
+                width: 100%;
+                max-width: none;
+                padding: 14px;
+                gap: 12px;
+                grid-template-columns: minmax(240px, 0.92fr) minmax(220px, 1.08fr);
+                grid-template-areas:
+                    "header frame"
+                    "label frame";
+                align-items: center;
+            }
+
+            .hero-header {
+                grid-area: header;
+                align-items: flex-start;
+            }
+
+            .main-thumb {
+                grid-area: frame;
+                height: calc(100vh - 70px);
+                min-height: 220px;
+            }
+
+            .hero-label {
+                grid-area: label;
+                font-size: clamp(1.6rem, 5vw, 3rem);
+                text-align: left;
+            }
+
+            .brand-wrap {
+                justify-content: flex-start;
+            }
+
+            .brand-logo {
+                width: 64px;
+                height: 64px;
+            }
+
+            .brand-title {
+                font-size: clamp(1.2rem, 3vw, 1.8rem);
+            }
+
+            .shell {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .recent-panel {
+                min-height: 0;
+                max-height: calc(100vh - 120px);
+            }
+
+            .recent-list {
+                max-height: calc(100vh - 200px);
+            }
+
+            .bottom-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .circle-wrap {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .quadrant {
+                min-height: 200px;
+            }
+
+            .quad-content {
+                min-height: 174px;
+            }
+
+            .bin-photo {
+                height: 96px;
+            }
+
+            .settings-modal {
+                height: calc(100vh - 20px);
+                padding: 12px;
             }
         }
     </style>
