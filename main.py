@@ -13,7 +13,7 @@ import detection_status
 import web_server
 
 #CONSTANTS
-MODEL_PATH = "yolo11n-ver1.engine" #"yolo11n-ver1.pt" # 
+MODEL_PATH = "models/yolo11n-ver2.engine" #"yolo11n-ver1.pt" # 
 SERIAL_PORT = "/dev/ttyUSB0" #'COM12' # /dev/ttyUSB0
 CAMERA_PATH = "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1640, height=1232, framerate=30/1 ! nvvidconv ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
 DATASET_DIR = "dataset"

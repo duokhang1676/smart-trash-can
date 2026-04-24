@@ -43,10 +43,11 @@ float readDistance(int trigPin, int echoPin) {
 
 void warm_up(){
   digitalWrite(whistlePin, HIGH);
+  delay(100);
+  digitalWrite(whistlePin, LOW);
   servo1.write(horizontal_2);
   delay(1000);
   servo1.write(horizontal_0);
-  digitalWrite(whistlePin, LOW);
 }
 
 void throwToBin(uint8_t binIndex) {
@@ -54,7 +55,7 @@ void throwToBin(uint8_t binIndex) {
     return;
   }
   servo1.write(horizontalTargets[binIndex]);
-  delay(500);
+  delay(100);
   servo2.write(verticalTargets[binIndex]);
   delay(1000);
 
@@ -143,7 +144,7 @@ void handleSerialCommand() {
 void setup() {
   pinMode(whistlePin, OUTPUT);
   digitalWrite(whistlePin, HIGH);
-  delay(500);
+  delay(100);
   digitalWrite(whistlePin, LOW);
 
   Serial.begin(9600);
