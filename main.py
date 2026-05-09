@@ -292,7 +292,7 @@ def get_group_for_label(label):
 def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     detect_started = time.perf_counter()
     # Detect
-    results = model(frame, conf=0.5, verbose=False)
+    results = model(frame, conf=0.6, verbose=False)
     infer_ms = (time.perf_counter() - detect_started) * 1000.0
     if infer_ms > 300:
         logger.warning("Slow inference: %.1f ms", infer_ms)
