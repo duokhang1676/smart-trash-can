@@ -27,6 +27,10 @@ ENABLE_DATASET_SAVE = False
 CAMERA_FRAME_WAIT_TIMEOUT_SEC = 0.12
 CAMERA_WARN_THROTTLE_SEC = 2.0
 CAMERA_MISS_WARN_STREAK = 3
+CAMERA_WARMUP_FRAMES = 3
+MODEL_WARMUP_RUNS = 1
+SERIAL_INIT_WAIT_SEC = 0.5
+WEB_SERVER_START_AFTER_PROCESSED_FRAMES = 10
 
 logging.basicConfig(
     level=logging.INFO,
@@ -369,14 +373,12 @@ def process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detecti
             detection_status.update_detection(detected_labels, detected_groups, frame_thumbnail)
 
 # Main loop to read from camera, process frames, and handle serial communication.
-def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
+def main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status):
     frame_count = 0
-    last_frame_id = 0
-    last_good_frame = None
-    frame_miss_streak = 0
-    last_read_warn_time = 0.0
-    last_miss_warn_time = 0.0
+    processed_frames = 0
     serial_buffer = ""
+    web_thread = None
+    web_server_started = False
     loop_started = time.perf_counter()
     logger.info("main_loop started")
     while True:
@@ -403,36 +405,23 @@ def main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, dete
                 print(f"Received bin status: {full_status}")
 
         read_t0 = time.perf_counter()
-        frame_id, frame = frame_buffer.get_latest(last_frame_id, timeout=CAMERA_FRAME_WAIT_TIMEOUT_SEC)
+        ret, frame = cap.read()
         read_ms = (time.perf_counter() - read_t0) * 1000.0
-        now = time.time()
+        if not ret:
+            logger.warning("Camera read failed: %.1f ms", read_ms)
+            time.sleep(0.01)
+            continue
 
-        if frame is None:
-            frame_miss_streak += 1
-            if read_ms > 200 and (now - last_read_warn_time) >= CAMERA_WARN_THROTTLE_SEC:
-                logger.warning("Camera read slow: %.1f ms", read_ms)
-                last_read_warn_time = now
-
-            if frame_miss_streak >= CAMERA_MISS_WARN_STREAK and (now - last_miss_warn_time) >= CAMERA_WARN_THROTTLE_SEC:
-                logger.warning(
-                    "No new frame streak=%d at count=%d; reusing last frame",
-                    frame_miss_streak,
-                    frame_count,
-                )
-                last_miss_warn_time = now
-
-            if last_good_frame is None:
-                continue
-            frame = last_good_frame.copy()
-        else:
-            frame_miss_streak = 0
-            last_frame_id = frame_id
-            last_good_frame = frame
-        
-        # frame_count += 1
-        # if frame_count % 5 != 0:
-        #     continue
         process_frame(frame, model, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
+        processed_frames += 1
+
+        if not web_server_started and processed_frames >= WEB_SERVER_START_AFTER_PROCESSED_FRAMES:
+            logger.info("Starting web server after detector stabilization")
+            web_thread = threading.Thread(target=web_server.start_web_server, args=(5000,), daemon=True)
+            web_thread.start()
+            time.sleep(0.5)
+            web_server_started = True
+            logger.info("Web server started at http://localhost:5000")
 
         if frame_count % 30 == 0:
             elapsed = time.perf_counter() - loop_started
@@ -469,21 +458,16 @@ def main():
             return
         log_stage(start_time, "Camera is opened")
 
-        # Warm-up camera
+        # Keep camera warm-up short to reduce boot-time load on Jetson.
         log_stage(start_time, "Camera warm-up started")
-        for _ in range(10):
+        for _ in range(CAMERA_WARMUP_FRAMES):
             cap.read()
         log_stage(start_time, "Camera warm-up finished")
 
-        log_stage(start_time, "Starting latest-frame buffer")
-        frame_buffer = LatestFrameBuffer(cap)
-        frame_buffer.start()
-        log_stage(start_time, "Latest-frame buffer started")
-
-        # Warm-up model
+        # Keep model warm-up minimal so startup does not spike CPU/GPU for long.
         log_stage(start_time, "Model warm-up started")
         dummy = np.zeros((320, 320, 3), dtype=np.uint8)
-        for _ in range(5):
+        for _ in range(MODEL_WARMUP_RUNS):
             model(dummy, verbose=False)
         log_stage(start_time, "Model warm-up finished")
 
@@ -491,7 +475,7 @@ def main():
         ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0)
         log_stage(start_time, "Serial opened")
 
-        time.sleep(2)  # Wait for serial connection to initialize.
+        time.sleep(SERIAL_INIT_WAIT_SEC)  # Give USB serial time to settle.
         log_stage(start_time, "Serial init wait done")
 
         # Send warm-up command once after initial connection.
@@ -516,15 +500,7 @@ def main():
         else:
             log_stage(start_time, "Save worker thread skipped")
 
-        # Start web server in separate thread
-        log_stage(start_time, "Starting web server thread")
-        web_thread = threading.Thread(target=web_server.start_web_server, args=(5000,), daemon=True)
-        time.sleep(2)  # Give web server a moment to start before main loop begins.
-        web_thread.start()
-        logger.info("Web server started at http://localhost:5000")
-        log_stage(start_time, "Web server thread started")
-
-        time.sleep(1)  # Short delay to ensure everything is initialized before starting main loop.
+        time.sleep(0.5)  # Short delay to ensure everything is initialized before starting main loop.
         log_stage(start_time, "Pre-loop delay done")
         full_status = [0.0] * 4
         detection_status.update_full_status(full_status)
@@ -541,7 +517,7 @@ def main():
             'locked_group': None,
         }
         log_stage(start_time, "Entering main_loop")
-        main_loop(model, frame_buffer, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
+        main_loop(model, cap, ser, save_queue, images_dir, labels_dir, detection_state, full_status)
         log_stage(start_time, "main_loop returned")
 
     except KeyboardInterrupt:
@@ -551,8 +527,6 @@ def main():
         raise
     finally:
         log_stage(start_time, "Cleanup started")
-        if frame_buffer is not None:
-            frame_buffer.stop()
         if ser is not None and ser.is_open:
             ser.close()
         if ENABLE_DATASET_SAVE and save_queue is not None and save_thread is not None:
