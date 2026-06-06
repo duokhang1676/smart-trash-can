@@ -28,7 +28,7 @@ CAMERA_FRAME_WAIT_TIMEOUT_SEC = 0.12
 CAMERA_WARN_THROTTLE_SEC = 2.0
 CAMERA_MISS_WARN_STREAK = 3
 CAMERA_WARMUP_FRAMES = 3
-MODEL_WARMUP_RUNS = 1
+MODEL_WARMUP_RUNS = 0
 SERIAL_INIT_WAIT_SEC = 0.5
 WEB_SERVER_START_AFTER_PROCESSED_FRAMES = 10
 
@@ -458,13 +458,21 @@ def main():
             return
         log_stage(start_time, "Camera is opened")
 
+        read_t0 = time.perf_counter()
+        first_ret, _ = cap.read()
+        first_read_ms = (time.perf_counter() - read_t0) * 1000.0
+        if not first_ret:
+            logger.error("Camera initial read failed: %.1f ms", first_read_ms)
+            return
+        log_stage(start_time, f"Camera initial read OK in {first_read_ms:.1f} ms")
+
         # Keep camera warm-up short to reduce boot-time load on Jetson.
         log_stage(start_time, "Camera warm-up started")
         for _ in range(CAMERA_WARMUP_FRAMES):
             cap.read()
         log_stage(start_time, "Camera warm-up finished")
 
-        # Keep model warm-up minimal so startup does not spike CPU/GPU for long.
+        # Skip model warm-up by default because the first TensorRT inference can be very expensive.
         log_stage(start_time, "Model warm-up started")
         dummy = np.zeros((320, 320, 3), dtype=np.uint8)
         for _ in range(MODEL_WARMUP_RUNS):
